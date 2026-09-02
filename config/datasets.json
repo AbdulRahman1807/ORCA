@@ -1,0 +1,1779 @@
+{
+  "source_id": "S-01..S-04",
+  "source": "INCOIS ERDDAP",
+  "captured_at": "2026-09-02T12:29:47.966022+00:00",
+  "dataset_count": 17,
+  "datasets": {
+    "AMSR2_3day_Global": {
+      "dataset_id": "AMSR2_3day_Global",
+      "title": "AMSR2 3day Global",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 5166,
+          "average_spacing": "1",
+          "evenly_spaced": true,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 720,
+          "average_spacing": "1.0",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 1440,
+          "average_spacing": "1.0",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "SST": {
+          "name": "SST",
+          "dtype": "float",
+          "units": "degree_C",
+          "long_name": "AMSR2 sea surface temperature",
+          "fill_value": -999.0,
+          "standard_name": "sea_surface_temperature"
+        },
+        "WSPD_LF": {
+          "name": "WSPD_LF",
+          "dtype": "float",
+          "units": null,
+          "long_name": null,
+          "fill_value": null,
+          "standard_name": "wind_speed"
+        },
+        "WSPD_MF": {
+          "name": "WSPD_MF",
+          "dtype": "float",
+          "units": null,
+          "long_name": null,
+          "fill_value": null,
+          "standard_name": "wind_speed"
+        },
+        "VAPOR": {
+          "name": "VAPOR",
+          "dtype": "float",
+          "units": null,
+          "long_name": null,
+          "fill_value": null,
+          "standard_name": null
+        },
+        "CLOUD": {
+          "name": "CLOUD",
+          "dtype": "float",
+          "units": null,
+          "long_name": null,
+          "fill_value": null,
+          "standard_name": null
+        },
+        "RAIN": {
+          "name": "RAIN",
+          "dtype": "float",
+          "units": null,
+          "long_name": null,
+          "fill_value": null,
+          "standard_name": null
+        }
+      },
+      "time_coverage_start": "1901-01-15T00:00:00Z",
+      "time_coverage_end": "1915-03-08T00:00:00Z",
+      "lat_min": 0.0,
+      "lat_max": 719.0,
+      "lon_min": 0.0,
+      "lon_max": 1439.0,
+      "lat_resolution": "1.0",
+      "lon_resolution": "1.0",
+      "issues": [
+        "latitude axis is not in degrees (geospatial_lat_max=719.0); the axis appears to publish array indices",
+        "variable 'WSPD_LF' publishes no units",
+        "variable 'WSPD_MF' publishes no units",
+        "variable 'VAPOR' publishes no units",
+        "variable 'CLOUD' publishes no units",
+        "variable 'RAIN' publishes no units"
+      ],
+      "usable": false,
+      "captured_at": "2026-09-02T12:29:47.441359+00:00"
+    },
+    "AMSRE_MONTHLY_GLOBAL": {
+      "dataset_id": "AMSRE_MONTHLY_GLOBAL",
+      "title": "AMSRE Monthly Global Data",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 112,
+          "average_spacing": "30",
+          "evenly_spaced": true,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 720,
+          "average_spacing": "0.25",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 1440,
+          "average_spacing": "0.25",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "SST": {
+          "name": "SST",
+          "dtype": "float",
+          "units": "Degree C",
+          "long_name": "Sea Surface Temperature",
+          "fill_value": 255.0,
+          "standard_name": "sea_surface_temperature"
+        },
+        "WSPD_LF": {
+          "name": "WSPD_LF",
+          "dtype": "float",
+          "units": "m/s",
+          "long_name": "Wind speed using 10.7 GHz channel",
+          "fill_value": 255.0,
+          "standard_name": "wind_speed"
+        },
+        "WSPD_MF": {
+          "name": "WSPD_MF",
+          "dtype": "float",
+          "units": "m/s",
+          "long_name": "Wind speed using 18.7 GHz channel",
+          "fill_value": 255.0,
+          "standard_name": "wind_speed"
+        },
+        "VAPOR": {
+          "name": "VAPOR",
+          "dtype": "float",
+          "units": "mm",
+          "long_name": "Columnar atmospheric water vapor",
+          "fill_value": 255.0,
+          "standard_name": null
+        },
+        "CLOUD": {
+          "name": "CLOUD",
+          "dtype": "float",
+          "units": "mm",
+          "long_name": "Columnar cloud liquid water",
+          "fill_value": 255.0,
+          "standard_name": null
+        },
+        "RAIN": {
+          "name": "RAIN",
+          "dtype": "float",
+          "units": "mm/hr",
+          "long_name": "Rain Rate",
+          "fill_value": 255.0,
+          "standard_name": null
+        }
+      },
+      "time_coverage_start": "2002-06-14T00:00:00Z",
+      "time_coverage_end": "2011-09-14T00:00:00Z",
+      "lat_min": -90.0,
+      "lat_max": 89.75,
+      "lon_min": 0.0,
+      "lon_max": 359.75,
+      "lat_resolution": "0.25",
+      "lon_resolution": "0.25",
+      "issues": [],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.473743+00:00"
+    },
+    "IRS_chlorophyll_datasets": {
+      "dataset_id": "IRS_chlorophyll_datasets",
+      "title": "IRS P4 OCM-Chlorophyll",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 97,
+          "average_spacing": "12",
+          "evenly_spaced": false,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 2556,
+          "average_spacing": "0.010184999851331318",
+          "evenly_spaced": false,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 4315,
+          "average_spacing": "0.010184999412002528",
+          "evenly_spaced": false,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "CHLOROPHYLL": {
+          "name": "CHLOROPHYLL",
+          "dtype": "float",
+          "units": "mg/m^3",
+          "long_name": "IRS P4 OCM-Chlorophyll",
+          "fill_value": -1e+34,
+          "standard_name": "concentration_of_chlorophyll_in_sea_water"
+        }
+      },
+      "time_coverage_start": "2003-01-05T00:00:00Z",
+      "time_coverage_end": "2006-03-21T12:00:00Z",
+      "lat_min": 0.023322999477386475,
+      "lat_max": 26.045997619628906,
+      "lon_min": 60.010101318359375,
+      "lon_max": 103.94818878173828,
+      "lat_resolution": null,
+      "lon_resolution": null,
+      "issues": [],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.932161+00:00"
+    },
+    "Indian_ARGO_Floats": {
+      "dataset_id": "Indian_ARGO_Floats",
+      "title": "INDIAN ARGO Floats Data",
+      "institution": "INCOIS",
+      "dim_order": [],
+      "axes": {},
+      "variables": {
+        "DATE_CREATION": {
+          "name": "DATE_CREATION",
+          "dtype": "String",
+          "units": null,
+          "long_name": "Date of file creation",
+          "fill_value": null,
+          "standard_name": null
+        },
+        "DATE_UPDATE": {
+          "name": "DATE_UPDATE",
+          "dtype": "String",
+          "units": null,
+          "long_name": "Date of update of this file",
+          "fill_value": null,
+          "standard_name": null
+        },
+        "PLATFORM_NUMBER": {
+          "name": "PLATFORM_NUMBER",
+          "dtype": "String",
+          "units": null,
+          "long_name": "Float unique identifier",
+          "fill_value": null,
+          "standard_name": null
+        },
+        "CYCLE_NUMBER": {
+          "name": "CYCLE_NUMBER",
+          "dtype": "int",
+          "units": null,
+          "long_name": "Float cycle number",
+          "fill_value": 99999.0,
+          "standard_name": null
+        },
+        "DIRECTION": {
+          "name": "DIRECTION",
+          "dtype": "char",
+          "units": null,
+          "long_name": "Direction of the station profiles",
+          "fill_value": null,
+          "standard_name": null
+        },
+        "PLATFORM_TYPE": {
+          "name": "PLATFORM_TYPE",
+          "dtype": "String",
+          "units": null,
+          "long_name": "Type of float",
+          "fill_value": null,
+          "standard_name": null
+        },
+        "time": {
+          "name": "time",
+          "dtype": "double",
+          "units": "seconds since 1970-01-01T00:00:00Z",
+          "long_name": "Julian day (UTC) of the station relative to REFERENCE_DATE_TIME",
+          "fill_value": null,
+          "standard_name": "time"
+        },
+        "JULD_QC": {
+          "name": "JULD_QC",
+          "dtype": "char",
+          "units": null,
+          "long_name": "Quality on date and time",
+          "fill_value": null,
+          "standard_name": null
+        },
+        "JULD_LOCATION": {
+          "name": "JULD_LOCATION",
+          "dtype": "double",
+          "units": "seconds since 1970-01-01T00:00:00Z",
+          "long_name": "Julian day (UTC) of the location relative to REFERENCE_DATE_TIME",
+          "fill_value": null,
+          "standard_name": "time"
+        },
+        "latitude": {
+          "name": "latitude",
+          "dtype": "double",
+          "units": "degrees_north",
+          "long_name": "Latitude of the station, best estimate",
+          "fill_value": 99999.0,
+          "standard_name": "latitude"
+        },
+        "longitude": {
+          "name": "longitude",
+          "dtype": "double",
+          "units": "degrees_east",
+          "long_name": "Longitude of the station, best estimate",
+          "fill_value": 99999.0,
+          "standard_name": "longitude"
+        },
+        "PRES": {
+          "name": "PRES",
+          "dtype": "float",
+          "units": "decibar",
+          "long_name": "Sea water pressure, equals 0 at sea-level",
+          "fill_value": 99999.0,
+          "standard_name": "sea_water_pressure"
+        },
+        "PRES_QC": {
+          "name": "PRES_QC",
+          "dtype": "char",
+          "units": null,
+          "long_name": "quality flag",
+          "fill_value": null,
+          "standard_name": null
+        },
+        "PRES_ADJUSTED": {
+          "name": "PRES_ADJUSTED",
+          "dtype": "float",
+          "units": "decibar",
+          "long_name": "Sea water pressure, equals 0 at sea-level",
+          "fill_value": 99999.0,
+          "standard_name": "sea_water_pressure"
+        },
+        "PRES_ADJUSTED_QC": {
+          "name": "PRES_ADJUSTED_QC",
+          "dtype": "char",
+          "units": null,
+          "long_name": "quality flag",
+          "fill_value": null,
+          "standard_name": null
+        },
+        "TEMP": {
+          "name": "TEMP",
+          "dtype": "float",
+          "units": "degree_Celsius",
+          "long_name": "Sea temperature in-situ ITS-90 scale",
+          "fill_value": 99999.0,
+          "standard_name": "sea_water_temperature"
+        },
+        "TEMP_QC": {
+          "name": "TEMP_QC",
+          "dtype": "char",
+          "units": null,
+          "long_name": "quality flag",
+          "fill_value": null,
+          "standard_name": null
+        },
+        "TEMP_ADJUSTED": {
+          "name": "TEMP_ADJUSTED",
+          "dtype": "float",
+          "units": "degree_Celsius",
+          "long_name": "Sea temperature in-situ ITS-90 scale",
+          "fill_value": 99999.0,
+          "standard_name": "sea_water_temperature"
+        },
+        "TEMP_ADJUSTED_QC": {
+          "name": "TEMP_ADJUSTED_QC",
+          "dtype": "char",
+          "units": null,
+          "long_name": "quality flag",
+          "fill_value": null,
+          "standard_name": null
+        },
+        "PSAL": {
+          "name": "PSAL",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "Practical salinity",
+          "fill_value": 99999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "PSAL_QC": {
+          "name": "PSAL_QC",
+          "dtype": "char",
+          "units": null,
+          "long_name": "quality flag",
+          "fill_value": null,
+          "standard_name": null
+        },
+        "PSAL_ADJUSTED": {
+          "name": "PSAL_ADJUSTED",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "Practical salinity",
+          "fill_value": 99999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "PSAL_ADJUSTED_QC": {
+          "name": "PSAL_ADJUSTED_QC",
+          "dtype": "char",
+          "units": null,
+          "long_name": "quality flag",
+          "fill_value": null,
+          "standard_name": null
+        }
+      },
+      "time_coverage_start": "2002-10-24T19:30:03Z",
+      "time_coverage_end": "2025-04-23T13:28:00Z",
+      "lat_min": -69.735,
+      "lat_max": 47.78333333333333,
+      "lon_min": -179.988,
+      "lon_max": 179.903,
+      "lat_resolution": null,
+      "lon_resolution": null,
+      "issues": [
+        "variable 'DATE_CREATION' publishes no units",
+        "variable 'DATE_UPDATE' publishes no units",
+        "variable 'PLATFORM_NUMBER' publishes no units",
+        "variable 'CYCLE_NUMBER' publishes no units",
+        "variable 'DIRECTION' publishes no units",
+        "variable 'PLATFORM_TYPE' publishes no units",
+        "variable 'JULD_QC' publishes no units",
+        "variable 'PRES_QC' publishes no units",
+        "variable 'PRES_ADJUSTED_QC' publishes no units",
+        "variable 'TEMP_QC' publishes no units",
+        "variable 'TEMP_ADJUSTED_QC' publishes no units",
+        "variable 'PSAL_QC' publishes no units",
+        "variable 'PSAL_ADJUSTED_QC' publishes no units"
+      ],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.900888+00:00"
+    },
+    "NOAA_AVHRR_AMSR_datasets": {
+      "dataset_id": "NOAA_AVHRR_AMSR_datasets",
+      "title": "Daily-OI-V2, final, Data (Ship, Buoy, AMSR-E, AVHRR, GSFC-ice)",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "zlev",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 3413,
+          "average_spacing": "1",
+          "evenly_spaced": true,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "zlev": {
+          "name": "zlev",
+          "n_values": 1,
+          "average_spacing": null,
+          "evenly_spaced": null,
+          "units": "meters"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 240,
+          "average_spacing": "0.25",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 480,
+          "average_spacing": "0.25",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "sst": {
+          "name": "sst",
+          "dtype": "float",
+          "units": "degrees C",
+          "long_name": "Daily sea surface temperature",
+          "fill_value": -9.99,
+          "standard_name": "sea_surface_temperature"
+        },
+        "anom": {
+          "name": "anom",
+          "dtype": "float",
+          "units": "degrees C",
+          "long_name": "Daily sea surface temperature anomalies",
+          "fill_value": -9.99,
+          "standard_name": "surface_temperature_anomaly"
+        }
+      },
+      "time_coverage_start": "2002-06-01T00:00:00Z",
+      "time_coverage_end": "2011-10-04T00:00:00Z",
+      "lat_min": -29.875,
+      "lat_max": 29.875,
+      "lon_min": 20.125,
+      "lon_max": 139.875,
+      "lat_resolution": "0.25",
+      "lon_resolution": "0.25",
+      "issues": [],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.542103+00:00"
+    },
+    "ascat_daily_datasets": {
+      "dataset_id": "ascat_daily_datasets",
+      "title": "Daily ASCAT global wind field",
+      "institution": "ifremer",
+      "dim_order": [
+        "time",
+        "depth",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 5845,
+          "average_spacing": "1",
+          "evenly_spaced": false,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "depth": {
+          "name": "depth",
+          "n_values": 1,
+          "average_spacing": null,
+          "evenly_spaced": null,
+          "units": "m"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 240,
+          "average_spacing": "0.25",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 480,
+          "average_spacing": "0.25",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "wind_speed": {
+          "name": "wind_speed",
+          "dtype": "double",
+          "units": "m/s",
+          "long_name": "wind speed",
+          "fill_value": -327.68,
+          "standard_name": "wind_speed"
+        },
+        "eastward_wind": {
+          "name": "eastward_wind",
+          "dtype": "double",
+          "units": "m/s",
+          "long_name": "eastward wind speed",
+          "fill_value": -327.68,
+          "standard_name": "eastward_wind"
+        },
+        "northward_wind": {
+          "name": "northward_wind",
+          "dtype": "double",
+          "units": "m/s",
+          "long_name": "northward wind speed",
+          "fill_value": -327.68,
+          "standard_name": "northward_wind"
+        },
+        "wind_stress": {
+          "name": "wind_stress",
+          "dtype": "double",
+          "units": "Pa",
+          "long_name": "wind stress",
+          "fill_value": -3.2768,
+          "standard_name": null
+        },
+        "surface_downward_eastward_stress": {
+          "name": "surface_downward_eastward_stress",
+          "dtype": "double",
+          "units": "Pa",
+          "long_name": "eastward wind stress",
+          "fill_value": -3.2768,
+          "standard_name": "surface_downward_eastward_stress"
+        },
+        "surface_downward_northward_stress": {
+          "name": "surface_downward_northward_stress",
+          "dtype": "double",
+          "units": "Pa",
+          "long_name": "northward wind stress",
+          "fill_value": -3.2768,
+          "standard_name": "surface_downward_northward_stress"
+        }
+      },
+      "time_coverage_start": "2007-03-21T12:00:00Z",
+      "time_coverage_end": "2023-05-21T12:00:00Z",
+      "lat_min": -29.875,
+      "lat_max": 29.875,
+      "lon_min": 20.125,
+      "lon_max": 139.875,
+      "lat_resolution": "0.25",
+      "lon_resolution": "0.25",
+      "issues": [],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.509143+00:00"
+    },
+    "ascat_mnt_datasets": {
+      "dataset_id": "ascat_mnt_datasets",
+      "title": "Monthly ASCAT global wind field",
+      "institution": "ifremer",
+      "dim_order": [
+        "time",
+        "depth",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 173,
+          "average_spacing": "30",
+          "evenly_spaced": false,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "depth": {
+          "name": "depth",
+          "n_values": 1,
+          "average_spacing": null,
+          "evenly_spaced": null,
+          "units": "m"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 641,
+          "average_spacing": "0.25",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 1440,
+          "average_spacing": "0.25",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "wind_speed": {
+          "name": "wind_speed",
+          "dtype": "double",
+          "units": "m/s",
+          "long_name": "wind speed",
+          "fill_value": -327.68,
+          "standard_name": "wind_speed"
+        },
+        "eastward_wind": {
+          "name": "eastward_wind",
+          "dtype": "double",
+          "units": "m/s",
+          "long_name": "eastward wind speed",
+          "fill_value": -327.68,
+          "standard_name": "eastward_wind"
+        },
+        "northward_wind": {
+          "name": "northward_wind",
+          "dtype": "double",
+          "units": "m/s",
+          "long_name": "northward wind speed",
+          "fill_value": -327.68,
+          "standard_name": "northward_wind"
+        },
+        "wind_stress": {
+          "name": "wind_stress",
+          "dtype": "double",
+          "units": "Pa",
+          "long_name": "wind stress",
+          "fill_value": -3.2768,
+          "standard_name": null
+        },
+        "surface_downward_eastward_stress": {
+          "name": "surface_downward_eastward_stress",
+          "dtype": "double",
+          "units": "Pa",
+          "long_name": "eastward wind stress",
+          "fill_value": -3.2768,
+          "standard_name": "surface_downward_eastward_stress"
+        },
+        "surface_downward_northward_stress": {
+          "name": "surface_downward_northward_stress",
+          "dtype": "double",
+          "units": "Pa",
+          "long_name": "northward wind stress",
+          "fill_value": -3.2768,
+          "standard_name": "surface_downward_northward_stress"
+        }
+      },
+      "time_coverage_start": "2007-05-01T12:00:00Z",
+      "time_coverage_end": "2021-11-01T12:00:00Z",
+      "lat_min": -79.875,
+      "lat_max": 80.125,
+      "lon_min": -179.875,
+      "lon_max": 179.875,
+      "lat_resolution": "0.25",
+      "lon_resolution": "0.25",
+      "issues": [],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.965611+00:00"
+    },
+    "incois_argo_10d_VAM": {
+      "dataset_id": "incois_argo_10d_VAM",
+      "title": "INCOIS ARGO 10 day data Variational Analysis Methodology",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "ZAX",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 813,
+          "average_spacing": "10",
+          "evenly_spaced": false,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "ZAX": {
+          "name": "ZAX",
+          "n_values": 24,
+          "average_spacing": "86.73913043478261",
+          "evenly_spaced": false,
+          "units": "METERS"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 60,
+          "average_spacing": "1.0",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 90,
+          "average_spacing": "1.0",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "TEMP": {
+          "name": "TEMP",
+          "dtype": "float",
+          "units": "degs",
+          "long_name": "Temperature",
+          "fill_value": -9999.0,
+          "standard_name": null
+        },
+        "TERR": {
+          "name": "TERR",
+          "dtype": "float",
+          "units": "degs",
+          "long_name": "Temp relative Error",
+          "fill_value": -9999.0,
+          "standard_name": null
+        },
+        "SAL": {
+          "name": "SAL",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "Salinity",
+          "fill_value": -9999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "SERR": {
+          "name": "SERR",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "Sal relative Error",
+          "fill_value": -9999.0,
+          "standard_name": null
+        }
+      },
+      "time_coverage_start": "2004-01-10T00:00:00Z",
+      "time_coverage_end": "2026-07-30T00:00:00Z",
+      "lat_min": -29.5,
+      "lat_max": 29.5,
+      "lon_min": 30.5,
+      "lon_max": 119.5,
+      "lat_resolution": "1.0",
+      "lon_resolution": "1.0",
+      "issues": [],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.612650+00:00"
+    },
+    "incois_argo_10day_McCreary": {
+      "dataset_id": "incois_argo_10day_McCreary",
+      "title": "INCOIS ARGO 10 Day data Kessler-McCreary Methodology",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "ZAX",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 921,
+          "average_spacing": "10",
+          "evenly_spaced": false,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "ZAX": {
+          "name": "ZAX",
+          "n_values": 24,
+          "average_spacing": "86.73913043478261",
+          "evenly_spaced": false,
+          "units": "METERS"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 60,
+          "average_spacing": "1.0",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 90,
+          "average_spacing": "1.0",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "S_ANALYZED": {
+          "name": "S_ANALYZED",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "Objectively Analyzed Salinity",
+          "fill_value": 9999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "S_MEAN": {
+          "name": "S_MEAN",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "Statistical Mean Salinity",
+          "fill_value": 9999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "S_STDEV": {
+          "name": "S_STDEV",
+          "dtype": "float",
+          "units": "psu",
+          "long_name": "Salinity Standard Deviation wrt analyzed mean",
+          "fill_value": 9999.0,
+          "standard_name": null
+        },
+        "S_RMSE": {
+          "name": "S_RMSE",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "Salinity RMSE wrt analyzed mean",
+          "fill_value": 9999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "S_ROIOBS": {
+          "name": "S_ROIOBS",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "No of Salinity values with in ROI",
+          "fill_value": 9999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "S_BOXOBS": {
+          "name": "S_BOXOBS",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "No of Salinity values with in 1x1 box",
+          "fill_value": 9999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "T_ANALYZED": {
+          "name": "T_ANALYZED",
+          "dtype": "float",
+          "units": "degs",
+          "long_name": "Objectively Analyzed Temperature",
+          "fill_value": 9999.0,
+          "standard_name": null
+        },
+        "T_MEAN": {
+          "name": "T_MEAN",
+          "dtype": "float",
+          "units": "degs",
+          "long_name": "Statistical Mean Temperature",
+          "fill_value": 9999.0,
+          "standard_name": null
+        },
+        "T_STDEV": {
+          "name": "T_STDEV",
+          "dtype": "float",
+          "units": "degs",
+          "long_name": "Temperature Standard Deviation wrt analyzed mean",
+          "fill_value": 9999.0,
+          "standard_name": null
+        },
+        "T_RMSE": {
+          "name": "T_RMSE",
+          "dtype": "float",
+          "units": "degs",
+          "long_name": "Temperature RMSE wrt analyzed mean",
+          "fill_value": 9999.0,
+          "standard_name": null
+        },
+        "T_ROIOBS": {
+          "name": "T_ROIOBS",
+          "dtype": "float",
+          "units": null,
+          "long_name": "No of Temperature values with in ROI",
+          "fill_value": 9999.0,
+          "standard_name": null
+        },
+        "T_BOXOBS": {
+          "name": "T_BOXOBS",
+          "dtype": "float",
+          "units": null,
+          "long_name": "No of Temperature values with in 1x1 box",
+          "fill_value": 9999.0,
+          "standard_name": null
+        }
+      },
+      "time_coverage_start": "2001-01-10T00:00:00Z",
+      "time_coverage_end": "2026-07-30T00:00:00Z",
+      "lat_min": -29.5,
+      "lat_max": 29.5,
+      "lon_min": 30.5,
+      "lon_max": 119.5,
+      "lat_resolution": "1.0",
+      "lon_resolution": "1.0",
+      "issues": [
+        "variable 'T_ROIOBS' publishes no units",
+        "variable 'T_BOXOBS' publishes no units"
+      ],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.580829+00:00"
+    },
+    "incois_argo_mnt_McCreary": {
+      "dataset_id": "incois_argo_mnt_McCreary",
+      "title": "INCOIS ARGO Monthly data Kessler-McCreary Methodology",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "ZAX",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 307,
+          "average_spacing": "30",
+          "evenly_spaced": false,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "ZAX": {
+          "name": "ZAX",
+          "n_values": 24,
+          "average_spacing": "86.73913043478261",
+          "evenly_spaced": false,
+          "units": "METERS"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 60,
+          "average_spacing": "1.0",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 90,
+          "average_spacing": "1.0",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "S_ANALYZED": {
+          "name": "S_ANALYZED",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "Objectively Analyzed Salinity",
+          "fill_value": 9999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "S_MEAN": {
+          "name": "S_MEAN",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "Statistical Mean Salinity",
+          "fill_value": 9999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "S_STDEV": {
+          "name": "S_STDEV",
+          "dtype": "float",
+          "units": "psu",
+          "long_name": "Salinity Standard Deviation wrt analyzed mean",
+          "fill_value": 9999.0,
+          "standard_name": null
+        },
+        "S_RMSE": {
+          "name": "S_RMSE",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "Salinity RMSE wrt analyzed mean",
+          "fill_value": 9999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "S_ROIOBS": {
+          "name": "S_ROIOBS",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "No of Salinity values with in ROI",
+          "fill_value": 9999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "S_BOXOBS": {
+          "name": "S_BOXOBS",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "No of Salinity values with in 1x1 box",
+          "fill_value": 9999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "T_ANALYZED": {
+          "name": "T_ANALYZED",
+          "dtype": "float",
+          "units": "degs",
+          "long_name": "Objectively Analyzed Temperature",
+          "fill_value": 9999.0,
+          "standard_name": null
+        },
+        "T_MEAN": {
+          "name": "T_MEAN",
+          "dtype": "float",
+          "units": "degs",
+          "long_name": "Statistical Mean Temperature",
+          "fill_value": 9999.0,
+          "standard_name": null
+        },
+        "T_STDEV": {
+          "name": "T_STDEV",
+          "dtype": "float",
+          "units": "degs",
+          "long_name": "Temperature Standard Deviation wrt analyzed mean",
+          "fill_value": 9999.0,
+          "standard_name": null
+        },
+        "T_RMSE": {
+          "name": "T_RMSE",
+          "dtype": "float",
+          "units": "degs",
+          "long_name": "Temperature RMSE wrt analyzed mean",
+          "fill_value": 9999.0,
+          "standard_name": null
+        },
+        "T_ROIOBS": {
+          "name": "T_ROIOBS",
+          "dtype": "float",
+          "units": null,
+          "long_name": "No of Temperature values with in ROI",
+          "fill_value": 9999.0,
+          "standard_name": null
+        },
+        "T_BOXOBS": {
+          "name": "T_BOXOBS",
+          "dtype": "float",
+          "units": null,
+          "long_name": "No of Temperature values with in 1x1 box",
+          "fill_value": 9999.0,
+          "standard_name": null
+        }
+      },
+      "time_coverage_start": "2001-01-15T00:00:00Z",
+      "time_coverage_end": "2026-07-15T00:00:00Z",
+      "lat_min": -29.5,
+      "lat_max": 29.5,
+      "lon_min": 30.5,
+      "lon_max": 119.5,
+      "lat_resolution": "1.0",
+      "lon_resolution": "1.0",
+      "issues": [
+        "variable 'T_ROIOBS' publishes no units",
+        "variable 'T_BOXOBS' publishes no units"
+      ],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.645066+00:00"
+    },
+    "incois_argo_mnt_VAM": {
+      "dataset_id": "incois_argo_mnt_VAM",
+      "title": "INCOIS ARGO Monthly data Variational Analysis Methodology",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "ZAX",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 271,
+          "average_spacing": "30",
+          "evenly_spaced": false,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "ZAX": {
+          "name": "ZAX",
+          "n_values": 24,
+          "average_spacing": "86.73913043478261",
+          "evenly_spaced": false,
+          "units": "METERS"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 60,
+          "average_spacing": "1.0",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 90,
+          "average_spacing": "1.0",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "TEMP": {
+          "name": "TEMP",
+          "dtype": "float",
+          "units": "degs",
+          "long_name": "Temperature",
+          "fill_value": -9999.0,
+          "standard_name": null
+        },
+        "TERR": {
+          "name": "TERR",
+          "dtype": "float",
+          "units": "degs",
+          "long_name": "Temp relative Error",
+          "fill_value": -9999.0,
+          "standard_name": null
+        },
+        "SAL": {
+          "name": "SAL",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "Salinity",
+          "fill_value": -9999.0,
+          "standard_name": "sea_water_practical_salinity"
+        },
+        "SERR": {
+          "name": "SERR",
+          "dtype": "float",
+          "units": "PSU",
+          "long_name": "Sal relative Error",
+          "fill_value": -9999.0,
+          "standard_name": null
+        }
+      },
+      "time_coverage_start": "2004-01-15T00:00:00Z",
+      "time_coverage_end": "2026-07-15T00:00:00Z",
+      "lat_min": -29.5,
+      "lat_max": 29.5,
+      "lon_min": 30.5,
+      "lon_max": 119.5,
+      "lat_resolution": "1.0",
+      "lon_resolution": "1.0",
+      "issues": [],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.675730+00:00"
+    },
+    "incois_argo_sst_weekly": {
+      "dataset_id": "incois_argo_sst_weekly",
+      "title": "INCOIS argo SST data Weekly",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 104,
+          "average_spacing": "7",
+          "evenly_spaced": true,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 241,
+          "average_spacing": "0.25",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 361,
+          "average_spacing": "0.25",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "ASST": {
+          "name": "ASST",
+          "dtype": "float",
+          "units": null,
+          "long_name": "IF(ANALYZED_FIELD GE 0) THEN ANALYZED_FIELD",
+          "fill_value": -1e+34,
+          "standard_name": null
+        },
+        "ERR": {
+          "name": "ERR",
+          "dtype": "float",
+          "units": null,
+          "long_name": "IF(ERROR_FIELD GE 0) THEN ERROR_FIELD",
+          "fill_value": -1e+34,
+          "standard_name": null
+        }
+      },
+      "time_coverage_start": "2009-01-07T00:00:00Z",
+      "time_coverage_end": "2010-12-29T00:00:00Z",
+      "lat_min": -30.0,
+      "lat_max": 30.0,
+      "lon_min": 30.0,
+      "lon_max": 120.0,
+      "lat_resolution": "0.25",
+      "lon_resolution": "0.25",
+      "issues": [
+        "variable 'ASST' publishes no units",
+        "variable 'ERR' publishes no units"
+      ],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.707782+00:00"
+    },
+    "incois_oceansat2_datasets": {
+      "dataset_id": "incois_oceansat2_datasets",
+      "title": "INCOIS Oceansat 2 OCM Data",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 3377,
+          "average_spacing": "1",
+          "evenly_spaced": true,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 717,
+          "average_spacing": "0.03880722027396",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 1317,
+          "average_spacing": "0.039995250131",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "CHL": {
+          "name": "CHL",
+          "dtype": "float",
+          "units": "mg/m3",
+          "long_name": "chlorophyll-a",
+          "fill_value": -1e+34,
+          "standard_name": "concentration_of_chlorophyll_in_sea_water"
+        },
+        "KD490": {
+          "name": "KD490",
+          "dtype": "float",
+          "units": "meter-1",
+          "long_name": "Diffuse Attenuation Coefficient",
+          "fill_value": -1e+34,
+          "standard_name": null
+        },
+        "TSM": {
+          "name": "TSM",
+          "dtype": "float",
+          "units": "mg/L",
+          "long_name": "Total Suspended Matter",
+          "fill_value": -1e+34,
+          "standard_name": null
+        }
+      },
+      "time_coverage_start": "2011-02-02T00:00:00Z",
+      "time_coverage_end": "2020-05-01T00:00:00Z",
+      "lat_min": 0.10701514192,
+      "lat_max": 27.89298485807536,
+      "lon_min": 46.6831254134,
+      "lon_max": 99.316874585796,
+      "lat_resolution": "0.03880722027396",
+      "lon_resolution": "0.039995250131",
+      "issues": [],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.739411+00:00"
+    },
+    "incois_quickscat_daily_datasets": {
+      "dataset_id": "incois_quickscat_daily_datasets",
+      "title": "INCOIS Quickscat Daily Data",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 3753,
+          "average_spacing": "1",
+          "evenly_spaced": false,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 120,
+          "average_spacing": "0.5",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 180,
+          "average_spacing": "0.5",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "WIND_SPEED": {
+          "name": "WIND_SPEED",
+          "dtype": "float",
+          "units": "m/s",
+          "long_name": "wind speed module",
+          "fill_value": 327.67,
+          "standard_name": "wind_speed"
+        },
+        "ZONAL_WIND_SPEED": {
+          "name": "ZONAL_WIND_SPEED",
+          "dtype": "float",
+          "units": "m/s",
+          "long_name": "zonal wind speed component",
+          "fill_value": 327.67,
+          "standard_name": "wind_speed"
+        },
+        "MERI_WIND_SPEED": {
+          "name": "MERI_WIND_SPEED",
+          "dtype": "float",
+          "units": "m/s",
+          "long_name": "meridional wind speed component",
+          "fill_value": 327.67,
+          "standard_name": "wind_speed"
+        },
+        "WIND_STRESS": {
+          "name": "WIND_STRESS",
+          "dtype": "float",
+          "units": "Pa",
+          "long_name": "wind stress magnitude",
+          "fill_value": 32.767,
+          "standard_name": null
+        },
+        "ZONAL_WIND_STRESS": {
+          "name": "ZONAL_WIND_STRESS",
+          "dtype": "float",
+          "units": "Pa",
+          "long_name": "zonal wind stress component",
+          "fill_value": 32.767,
+          "standard_name": null
+        },
+        "MERI_WIND_STRESS": {
+          "name": "MERI_WIND_STRESS",
+          "dtype": "float",
+          "units": "Pa",
+          "long_name": "meridional wind stress component",
+          "fill_value": 32.767,
+          "standard_name": null
+        },
+        "WIND_STRESS_CURL": {
+          "name": "WIND_STRESS_CURL",
+          "dtype": "float",
+          "units": "Pa/m",
+          "long_name": "wind stress curl",
+          "fill_value": 3.2767e-05,
+          "standard_name": null
+        }
+      },
+      "time_coverage_start": "1999-07-20T12:00:00Z",
+      "time_coverage_end": "2009-11-21T12:00:00Z",
+      "lat_min": -29.75,
+      "lat_max": 29.75,
+      "lon_min": 30.25,
+      "lon_max": 119.75,
+      "lat_resolution": "0.5",
+      "lon_resolution": "0.5",
+      "issues": [],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.770746+00:00"
+    },
+    "incois_quickscat_mnt_datasets": {
+      "dataset_id": "incois_quickscat_mnt_datasets",
+      "title": "INCOIS Quickscat Monthly Data",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 123,
+          "average_spacing": "30",
+          "evenly_spaced": false,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 120,
+          "average_spacing": "0.5",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 180,
+          "average_spacing": "0.5",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "WIND_SPEED": {
+          "name": "WIND_SPEED",
+          "dtype": "float",
+          "units": "meters per second",
+          "long_name": "wind speed module",
+          "fill_value": 327.67,
+          "standard_name": "wind_speed"
+        },
+        "ZONAL_WIND_SPEED": {
+          "name": "ZONAL_WIND_SPEED",
+          "dtype": "float",
+          "units": "meters per second",
+          "long_name": "zonal wind speed component",
+          "fill_value": 327.67,
+          "standard_name": "wind_speed"
+        },
+        "MERIDIONAL_WIND_SPEED": {
+          "name": "MERIDIONAL_WIND_SPEED",
+          "dtype": "float",
+          "units": "meters per second",
+          "long_name": "meridional wind speed component",
+          "fill_value": 327.67,
+          "standard_name": "wind_speed"
+        },
+        "WIND_STRESS": {
+          "name": "WIND_STRESS",
+          "dtype": "float",
+          "units": "pascals",
+          "long_name": "wind stress magnitude",
+          "fill_value": 32.767,
+          "standard_name": null
+        },
+        "ZONAL_WIND_STRESS": {
+          "name": "ZONAL_WIND_STRESS",
+          "dtype": "float",
+          "units": "pascals",
+          "long_name": "zonal wind stress component",
+          "fill_value": 32.767,
+          "standard_name": null
+        },
+        "MERIDIONAL_WIND_STRESS": {
+          "name": "MERIDIONAL_WIND_STRESS",
+          "dtype": "float",
+          "units": "pascals",
+          "long_name": "meridional wind stress component",
+          "fill_value": 32.767,
+          "standard_name": null
+        },
+        "WIND_STRESS_CURL": {
+          "name": "WIND_STRESS_CURL",
+          "dtype": "float",
+          "units": "pascals per meter",
+          "long_name": "wind stress curl",
+          "fill_value": 3.2767e-05,
+          "standard_name": null
+        }
+      },
+      "time_coverage_start": "1999-08-16T12:00:00Z",
+      "time_coverage_end": "2009-10-16T12:00:00Z",
+      "lat_min": -29.75,
+      "lat_max": 29.75,
+      "lon_min": 30.25,
+      "lon_max": 119.75,
+      "lat_resolution": "0.5",
+      "lon_resolution": "0.5",
+      "issues": [],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.803196+00:00"
+    },
+    "incois_tmi_3day_datasets": {
+      "dataset_id": "incois_tmi_3day_datasets",
+      "title": "INCOIS TMI 3Day Data",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 6226,
+          "average_spacing": "1",
+          "evenly_spaced": false,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 720,
+          "average_spacing": "0.25",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 1440,
+          "average_spacing": "0.25",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "SST": {
+          "name": "SST",
+          "dtype": "float",
+          "units": "Degree C",
+          "long_name": "Sea Surface Temperature",
+          "fill_value": 255.0,
+          "standard_name": "sea_surface_temperature"
+        },
+        "WSPD_LF": {
+          "name": "WSPD_LF",
+          "dtype": "float",
+          "units": "m/s",
+          "long_name": "Wind speed using 10.7 GHz channel",
+          "fill_value": 255.0,
+          "standard_name": "wind_speed"
+        },
+        "WSPD_MF": {
+          "name": "WSPD_MF",
+          "dtype": "float",
+          "units": "m/s",
+          "long_name": "Wind speed using 18.7 GHz channel",
+          "fill_value": 255.0,
+          "standard_name": "wind_speed"
+        },
+        "VAPOR": {
+          "name": "VAPOR",
+          "dtype": "float",
+          "units": "mm",
+          "long_name": "Columnar atmospheric water vapor",
+          "fill_value": 255.0,
+          "standard_name": null
+        },
+        "CLOUD": {
+          "name": "CLOUD",
+          "dtype": "float",
+          "units": "mm",
+          "long_name": "Columnar cloud liquid water",
+          "fill_value": 255.0,
+          "standard_name": null
+        },
+        "RAIN": {
+          "name": "RAIN",
+          "dtype": "float",
+          "units": "mm/hr",
+          "long_name": "Rain Rate",
+          "fill_value": 255.0,
+          "standard_name": null
+        }
+      },
+      "time_coverage_start": "1997-12-07T00:00:00Z",
+      "time_coverage_end": "2014-12-31T00:00:00Z",
+      "lat_min": -90.0,
+      "lat_max": 89.75,
+      "lon_min": 0.0,
+      "lon_max": 359.75,
+      "lat_resolution": "0.25",
+      "lon_resolution": "0.25",
+      "issues": [],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.835576+00:00"
+    },
+    "incois_valueadded_products_datasets": {
+      "dataset_id": "incois_valueadded_products_datasets",
+      "title": "INCOIS Value Added Products",
+      "institution": "INCOIS",
+      "dim_order": [
+        "time",
+        "latitude",
+        "longitude"
+      ],
+      "axes": {
+        "time": {
+          "name": "time",
+          "n_values": 549,
+          "average_spacing": "10",
+          "evenly_spaced": false,
+          "units": "seconds since 1970-01-01T00:00:00Z"
+        },
+        "latitude": {
+          "name": "latitude",
+          "n_values": 60,
+          "average_spacing": "1.0",
+          "evenly_spaced": true,
+          "units": "degrees_north"
+        },
+        "longitude": {
+          "name": "longitude",
+          "n_values": 90,
+          "average_spacing": "1.0",
+          "evenly_spaced": true,
+          "units": "degrees_east"
+        }
+      },
+      "variables": {
+        "MLD": {
+          "name": "MLD",
+          "dtype": "float",
+          "units": null,
+          "long_name": "Mixed Layer Depth (mts)",
+          "fill_value": -1e+34,
+          "standard_name": null
+        },
+        "ILD": {
+          "name": "ILD",
+          "dtype": "float",
+          "units": null,
+          "long_name": "Isothermal Layer Depth (mts)",
+          "fill_value": -1e+34,
+          "standard_name": null
+        },
+        "D26": {
+          "name": "D26",
+          "dtype": "float",
+          "units": null,
+          "long_name": "Depth of 26 Isotherm (mts)",
+          "fill_value": -1e+34,
+          "standard_name": null
+        },
+        "D20": {
+          "name": "D20",
+          "dtype": "float",
+          "units": null,
+          "long_name": "Depth of 20 Isotherm (mts)",
+          "fill_value": -1e+34,
+          "standard_name": null
+        },
+        "HTCNT": {
+          "name": "HTCNT",
+          "dtype": "float",
+          "units": null,
+          "long_name": "Heat Content Upto 300m *1E-08 (Jm^2)",
+          "fill_value": -1e+34,
+          "standard_name": null
+        },
+        "DYN_HT": {
+          "name": "DYN_HT",
+          "dtype": "float",
+          "units": null,
+          "long_name": "Dynamic Height(dyn-cm)",
+          "fill_value": -1e+34,
+          "standard_name": null
+        },
+        "GEO_U": {
+          "name": "GEO_U",
+          "dtype": "float",
+          "units": null,
+          "long_name": "Geostrophic U (cm/sec)",
+          "fill_value": -1e+34,
+          "standard_name": null
+        },
+        "GEO_V": {
+          "name": "GEO_V",
+          "dtype": "float",
+          "units": null,
+          "long_name": "Geostrophic V (cm/sec)",
+          "fill_value": -1e+34,
+          "standard_name": null
+        }
+      },
+      "time_coverage_start": "2004-01-10T00:00:00Z",
+      "time_coverage_end": "2019-03-30T00:00:00Z",
+      "lat_min": -29.5,
+      "lat_max": 29.5,
+      "lon_min": 30.5,
+      "lon_max": 119.5,
+      "lat_resolution": "1.0",
+      "lon_resolution": "1.0",
+      "issues": [
+        "variable 'MLD' publishes no units",
+        "variable 'ILD' publishes no units",
+        "variable 'D26' publishes no units",
+        "variable 'D20' publishes no units",
+        "variable 'HTCNT' publishes no units",
+        "variable 'DYN_HT' publishes no units",
+        "variable 'GEO_U' publishes no units",
+        "variable 'GEO_V' publishes no units"
+      ],
+      "usable": true,
+      "captured_at": "2026-09-02T12:29:47.866295+00:00"
+    }
+  }
+}
