@@ -1,0 +1,872 @@
+{
+    "metadata": {
+        ".zattrs": {
+            "Conventions": "CF-1.6",
+            "area": "GLO",
+            "contact": "servicedesk.cmems@mercator-ocean.eu",
+            "credit": "E.U. Copernicus Marine Service Information (CMEMS)",
+            "geospatial_lat_max": 90.0,
+            "geospatial_lat_min": -80.0,
+            "geospatial_lat_step": 0.08333587646484375,
+            "geospatial_lat_units": "degree",
+            "geospatial_lon_max": 179.9167022705078,
+            "geospatial_lon_min": -180.0,
+            "geospatial_lon_step": 0.0833282470703125,
+            "geospatial_lon_units": "degree",
+            "institution": "METEO-FRANCE",
+            "producer": "CMEMS - Global Monitoring and Forecasting Centre",
+            "product": "GLOBAL_ANALYSIS_FORECAST_WAV_001_027",
+            "references": "http://marine.copernicus.eu"
+        },
+        ".zgroup": {
+            "zarr_format": 2
+        },
+        "VCMX/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VCMX/.zattrs": {
+            "WMO_code": 218,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Maximum crest trough wave height",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_wave_maximum_height",
+            "type_of_analysis": "spectral analysis",
+            "units": "m"
+        },
+        "VHM0/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VHM0/.zattrs": {
+            "WMO_code": 100,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Spectral significant wave height (Hm0)",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_wave_significant_height",
+            "type_of_analysis": "spectral analysis",
+            "units": "m"
+        },
+        "VHM0_SW1/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VHM0_SW1/.zattrs": {
+            "WMO_code": 202,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Spectral significant primary swell wave height",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_primary_swell_wave_significant_height",
+            "type_of_analysis": "spectral analysis",
+            "units": "m"
+        },
+        "VHM0_SW2/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VHM0_SW2/.zattrs": {
+            "WMO_code": 203,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Spectral significant secondary swell wave height",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_secondary_swell_wave_significant_height",
+            "type_of_analysis": "spectral analysis",
+            "units": "m"
+        },
+        "VHM0_WW/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VHM0_WW/.zattrs": {
+            "WMO_code": 102,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Spectral significant wind wave height",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_wind_wave_significant_height",
+            "type_of_analysis": "spectral analysis",
+            "units": "m"
+        },
+        "VMDR/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VMDR/.zattrs": {
+            "WMO_code": 200,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 180.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Mean wave direction from (Mdir)",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_wave_from_direction",
+            "type_of_analysis": "spectral analysis",
+            "units": "degree"
+        },
+        "VMDR_SW1/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VMDR_SW1/.zattrs": {
+            "WMO_code": 107,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 180.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Mean primary swell wave direction from",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_primary_swell_wave_from_direction",
+            "type_of_analysis": "spectral analysis",
+            "units": "degree"
+        },
+        "VMDR_SW2/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VMDR_SW2/.zattrs": {
+            "WMO_code": 109,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 180.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Mean secondary swell wave direction from",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_secondary_swell_wave_from_direction",
+            "type_of_analysis": "spectral analysis",
+            "units": "degree"
+        },
+        "VMDR_WW/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VMDR_WW/.zattrs": {
+            "WMO_code": 101,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 180.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Mean wind wave direction from",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_wind_wave_from_direction",
+            "type_of_analysis": "spectral analysis",
+            "units": "degree"
+        },
+        "VMXL/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VMXL/.zattrs": {
+            "WMO_code": 211,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Height of the highest crest",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_wave_maximum_crest_height",
+            "type_of_analysis": "spectral analysis",
+            "units": "m"
+        },
+        "VPED/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VPED/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 180.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Wave principal direction at spectral peak",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_wave_from_direction_at_variance_spectral_density_maximum",
+            "type_of_analysis": "spectral analysis",
+            "units": "degree"
+        },
+        "VSDX/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VSDX/.zattrs": {
+            "WMO_code": 215,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Stokes drift U",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_wave_stokes_drift_x_velocity",
+            "type_of_analysis": "spectral analysis",
+            "units": "m s-1"
+        },
+        "VSDY/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VSDY/.zattrs": {
+            "WMO_code": 216,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Stokes drift V",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_wave_stokes_drift_y_velocity",
+            "type_of_analysis": "spectral analysis",
+            "units": "m s-1"
+        },
+        "VTM01_SW1/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VTM01_SW1/.zattrs": {
+            "WMO_code": 226,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Spectral moments (0,1) primary swell wave period",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_primary_swell_wave_mean_period",
+            "type_of_analysis": "spectral analysis",
+            "units": "s"
+        },
+        "VTM01_SW2/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VTM01_SW2/.zattrs": {
+            "WMO_code": 227,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Spectral moments (0,1) secondary swell wave period",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_secondary_swell_wave_mean_period",
+            "type_of_analysis": "spectral analysis",
+            "units": "s"
+        },
+        "VTM01_WW/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VTM01_WW/.zattrs": {
+            "WMO_code": 223,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Spectral moments (0,1) wind wave period",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_wind_wave_mean_period",
+            "type_of_analysis": "spectral analysis",
+            "units": "s"
+        },
+        "VTM02/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VTM02/.zattrs": {
+            "WMO_code": 221,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Spectral moments (0,2) wave period (Tm02)",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_wave_mean_period_from_variance_spectral_density_second_frequency_moment",
+            "type_of_analysis": "spectral analysis",
+            "units": "s"
+        },
+        "VTM10/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VTM10/.zattrs": {
+            "WMO_code": 201,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Spectral moments (-1,0) wave period (Tm-10)",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_wave_mean_period_from_variance_spectral_density_inverse_frequency_moment",
+            "type_of_analysis": "spectral analysis",
+            "units": "s"
+        },
+        "VTPK/.zarray": {
+            "chunks": [
+                1,
+                512,
+                2048
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i2",
+            "fill_value": -32767,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288,
+                2041,
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "VTPK/.zattrs": {
+            "WMO_code": 204,
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "latitude",
+                "longitude"
+            ],
+            "add_offset": 0.0,
+            "cell_methods": "time:point area:mean",
+            "long_name": "Wave period at spectral peak / peak period (Tp)",
+            "missing_value": -32767,
+            "scale_factor": 0.009999999776482582,
+            "standard_name": "sea_surface_wave_period_at_variance_spectral_density_maximum",
+            "type_of_analysis": "spectral analysis",
+            "units": "s"
+        },
+        "latitude/.zarray": {
+            "chunks": [
+                2041
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<f8",
+            "fill_value": "NaN",
+            "filters": null,
+            "order": "C",
+            "shape": [
+                2041
+            ],
+            "zarr_format": 2
+        },
+        "latitude/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "latitude"
+            ],
+            "axis": "Y",
+            "long_name": "latitude coordinate",
+            "standard_name": "latitude",
+            "step": 0.08333587646484375,
+            "units": "degrees_north"
+        },
+        "longitude/.zarray": {
+            "chunks": [
+                4320
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<f8",
+            "fill_value": "NaN",
+            "filters": null,
+            "order": "C",
+            "shape": [
+                4320
+            ],
+            "zarr_format": 2
+        },
+        "longitude/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "longitude"
+            ],
+            "axis": "X",
+            "long_name": "longitude coordinate",
+            "standard_name": "longitude",
+            "step": 0.0833282470703125,
+            "units": "degrees_east"
+        },
+        "time/.zarray": {
+            "chunks": [
+                5360
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i4",
+            "fill_value": null,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                11288
+            ],
+            "zarr_format": 2
+        },
+        "time/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "time"
+            ],
+            "calendar": "gregorian",
+            "units": "hours since 1950-01-01"
+        }
+    },
+    "zarr_consolidated_format": 1
+}

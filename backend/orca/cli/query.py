@@ -1,8 +1,8 @@
 """ORCA vertical-slice CLI.
 
-Runs the implemented part of the pipeline against live INCOIS ERDDAP and prints
-an evidence-backed report. It reports what it can support and refuses what it
-cannot -- see 12_RISK_AND_RECOMMENDATION_SPEC.md.
+Retrieval -> canonical schema -> evidence pool -> independent domain
+assessments -> cross-domain synthesis. Every number shown is traceable to a
+provenance record, and no verdict is issued without sufficient evidence.
 """
 from __future__ import annotations
 
@@ -11,113 +11,129 @@ import sys
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from ..adapters.cmems.adapter import CmemsAdapter
 from ..adapters.incois_erddap.adapter import IncoisErddapAdapter
-from ..schemas.enums import Domain, Freshness, Verdict
-from ..schemas.errors import ErrorCode
+from ..assessment.engine import EvidencePool, assess_domain
+from ..geospatial.derive import derive_from_envelope
+from ..assessment.synthesis import synthesise
+from ..schemas.core import SpatialRef
+from ..schemas.enums import Domain, Verdict
+from ..tools.marine import get_currents, get_wave_conditions
 from ..tools.ocean import get_chlorophyll, get_ocean_observations, get_sst
 
 IST = ZoneInfo("Asia/Kolkata")
-
-#: Inputs SAFETY requires before any safety statement may be issued.
-SAFETY_REQUIRED = ("significant_wave_height", "wind_speed", "official_warning_status")
-#: Tools that would supply them, and why they are not yet available.
-SAFETY_GAPS = {
-    "significant_wave_height": ("get_wave_conditions", "CMEMS credentials not configured"),
-    "wind_speed": ("get_weather", "IMD credentials not granted (HTTP 403 unauthenticated)"),
-    "official_warning_status": ("get_marine_warnings", "IMD credentials not granted"),
-}
-
 BAR = "=" * 78
 
+#: Capabilities the vertical slice does not yet have a source for, and why.
+#: These are declared so the answer can say what it did not check, rather than
+#: silently omitting them.
+UNBUILT = {
+    "official_warning_status": ("get_marine_warnings", "IMD credentials not granted"),
+    "lightning": ("get_lightning", "IMD credentials not granted"),
+    "cyclone_distance_km": ("get_cyclone_track", "IMD credentials not granted"),
+    "pfz_advisory": ("get_pfz", "INCOIS WMS pending network-independent verification"),
+}
 
-def _fmt_place(lat: float, lon: float, label: str | None) -> str:
-    return f"{label} ({lat:.3f} N, {lon:.3f} E)" if label else f"{lat:.3f} N, {lon:.3f} E"
+
+def get_wind(lat: float, lon: float, when: datetime, adapter):
+    """Wind via CMEMS L4 observations.
+
+    This is an OBSERVATION product with no forecast horizon, so a future query
+    correctly yields INSUFFICIENT_COVERAGE rather than an invented value.
+    """
+    from ..adapters.cmems.client import SOURCE_ID
+    from ..tools.base import collect_point_parameters
+    return collect_point_parameters(
+        "get_weather", ("eastward_wind", "northward_wind"), lat, lon, when,
+        lambda p: adapter.fetch_point(p, lat, lon, when), SOURCE_ID)
 
 
 def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
+    window_start, window_end = when, when + timedelta(hours=4)
+    spatial = SpatialRef.point(lat, lon, label=label)
+
     print(BAR)
     print("ORCA — Ocean Reasoning & Collaborative Agents   (vertical slice)")
     print(BAR)
-    print(f"location    {_fmt_place(lat, lon, label)}")
-    print(f"time window {when.astimezone(IST):%d %b %Y %H:%M} IST "
-          f"({when:%Y-%m-%dT%H:%MZ})")
+    print(f"location    {label + ' ' if label else ''}({lat:.3f} N, {lon:.3f} E)")
+    print(f"window      {window_start.astimezone(IST):%d %b %Y %H:%M}"
+          f"–{window_end.astimezone(IST):%H:%M} IST")
     print()
 
-    envelopes = []
-    with IncoisErddapAdapter() as adapter:
-        print("RETRIEVAL")
-        for name, fn in (("get_ocean_observations", get_ocean_observations),
-                         ("get_sst", get_sst),
-                         ("get_chlorophyll", get_chlorophyll)):
-            env = fn(lat, lon, when, adapter=adapter)
-            envelopes.append(env)
+    pool = EvidencePool()
+    derived_note: list[str] = []
+    print("RETRIEVAL")
+    with IncoisErddapAdapter() as erddap, CmemsAdapter() as cmems:
+        calls = [
+            ("get_wave_conditions", lambda: get_wave_conditions(lat, lon, when,
+                                                                adapter=cmems)),
+            ("get_currents", lambda: get_currents(lat, lon, when, adapter=cmems)),
+            ("get_weather", lambda: get_wind(lat, lon, when, cmems)),
+            ("get_ocean_observations", lambda: get_ocean_observations(lat, lon, when,
+                                                                      adapter=erddap)),
+            ("get_sst", lambda: get_sst(lat, lon, when, adapter=erddap)),
+            ("get_chlorophyll", lambda: get_chlorophyll(lat, lon, when, adapter=erddap)),
+        ]
+        for name, call in calls:
+            env = call()
+            # Speed/direction are derived by the kernel, never by an adapter.
+            d_data, d_prov = derive_from_envelope(env)
+            if d_data:
+                env.data.extend(d_data)
+                env.provenance.extend(d_prov)
+                derived_note.append(
+                    f"{', '.join(x.parameter for x in d_data)} derived from "
+                    f"{name} components")
+            pool.ingest(env)
             src = env.source_resolution.actual_source or "-"
-            fb = " (fallback)" if env.source_resolution.fallback_used else ""
+            fb = " fallback" if env.source_resolution.fallback_used else ""
+            codes = ",".join(sorted({c.value for c in env.codes()})) or "-"
             print(f"  {name:24} {env.status.value:8} {env.timing.duration_ms:>5} ms  "
-                  f"source={src}{fb}")
+                  f"{src}{fb}  [{codes}]")
+    for factor, (tool, why) in UNBUILT.items():
+        pool.add_gap(factor, "NOT_IMPLEMENTED", why, tool)
+        print(f"  {tool:24} {'skipped':8} {'':>5}      —  [{why}]")
 
-    print("\nEVIDENCE")
-    any_data = False
-    for env in envelopes:
-        for obs in env.data:
-            any_data = True
-            prov = next(p for p in env.provenance if p.provenance_id == obs.provenance_id)
-            q = obs.quality
-            print(f"  • {obs.parameter} = {obs.value} {obs.unit or ''}")
-            print(f"      source     {prov.source} / {prov.dataset}")
-            print(f"      valid      {obs.temporal.valid_time:%Y-%m-%d %H:%MZ}"
-                  f"  ({obs.temporal.representativeness.value})")
-            print(f"      retrieved  {prov.retrieved_at:%Y-%m-%d %H:%M:%SZ}")
-            print(f"      location   {obs.spatial.lat} N, {obs.spatial.lon} E"
-                  + (f", {obs.spatial.depth_m:g} m depth" if obs.spatial.depth_m else "")
-                  + f"  ({q.nearest_node_distance_km} km from your position)")
-            print(f"      quality    freshness={q.freshness.value if q.freshness else '?'}"
-                  f"  valid-cell coverage={q.coverage_fraction:.0%}"
-                  if q.coverage_fraction is not None else
-                  f"      quality    freshness={q.freshness.value if q.freshness else '?'}")
-            print(f"      provenance {prov.provenance_id}")
-    if not any_data:
+    if derived_note:
+        print("\nDERIVED (deterministic kernel, inputs recorded)")
+        for n in derived_note:
+            print(f"  • {n}")
+
+    print("\nEVIDENCE RETRIEVED")
+    if not pool.candidates:
         print("  (none)")
+    for c in pool.candidates:
+        print(f"  • {c.parameter} = {c.value:g} {c.unit or ''}".rstrip())
+        print(f"      {c.source} / {c.dataset}   valid {c.valid_time:%Y-%m-%d}"
+              f"  ({c.representativeness.value})")
+        print(f"      provenance {c.provenance_id}"
+              + (f"   nearest node {c.node_distance_km:g} km away"
+                 if c.node_distance_km else ""))
 
-    print("\nNOT EVALUATED")
-    stale = []
-    for env in envelopes:
-        for e in env.errors:
-            if e.code is ErrorCode.STALE_DATA:
-                stale.append(e.subject)
-            elif e.severity != "info":
-                print(f"  • {e.subject or env.tool}: {e.code.value} — {e.detail[:70]}")
-    for param, (tool, why) in SAFETY_GAPS.items():
-        print(f"  • {param}: {tool} unavailable — {why}")
+    print("\nASSESSMENTS   (independent by design; never merged into one score)")
+    assessments = []
+    for domain in (Domain.SAFETY, Domain.FISHING_SUITABILITY):
+        res = assess_domain(domain, pool, window_start=window_start,
+                            window_end=window_end, spatial=spatial)
+        a = res.assessment
+        assessments.append(a)
+        print(f"\n  {a.domain.value:22} {a.verdict.value:22} confidence={a.confidence.value}")
+        print(f"      thresholds  {a.threshold_set}  [{a.threshold_set_status}]")
+        for d in a.drivers:
+            mark = ">>" if d.contribution == "limiting" else "  "
+            val = f"{d.value:g} {d.unit or ''}".strip() if d.value is not None else "-"
+            print(f"      {mark} {d.factor:28} {val:14} {d.band or ''}")
+        for n in a.not_evaluated:
+            print(f"         not evaluated: {n.factor:24} {n.reason}")
+        if a.rationale:
+            print(f"      {a.rationale}")
 
-    print("\nASSESSMENTS  (domains are independent and are never merged)")
-    print(f"  {Domain.SAFETY.value:22} {Verdict.INSUFFICIENT_EVIDENCE.value}")
-    print(f"      No safety verdict is issued. Required inputs are missing:")
-    for p in SAFETY_REQUIRED:
-        print(f"        - {p} ({SAFETY_GAPS[p][1]})")
-    print(f"      Absence of evidence is not evidence of safety.")
+    s = synthesise(assessments)
+    print(f"\nANSWER   [{s.category}]")
+    print(f"  {s.headline}")
+    print(f"  disposition: {s.disposition.value}   confidence: {s.confidence.value}")
 
-    print(f"\n  {Domain.FISHING_SUITABILITY.value:22} {Verdict.INSUFFICIENT_EVIDENCE.value}")
-    if stale:
-        print(f"      Retrieved data exist but are not valid for the requested time:")
-        for env in envelopes:
-            for obs in env.data:
-                age_d = (when - obs.temporal.valid_time).days
-                print(f"        - {obs.parameter}: valid {obs.temporal.valid_time:%Y-%m-%d}"
-                      f", {age_d:,} days before the requested window"
-                      f" ({obs.temporal.representativeness.value})")
-        print("      A 10-day/monthly analysis and multi-year archives cannot support a")
-        print("      next-morning suitability verdict (representativeness rule).")
-    print("      The INCOIS PFZ advisory is the authoritative product for this question;")
-    print("      it is not reachable here (INCOIS WMS pending verification).")
-
-    print("\nWHAT THIS RUN DEMONSTRATES")
-    print("  - live retrieval from an authoritative source, with full provenance")
-    print("  - units, resolution and validity read from the server, never assumed")
-    print("  - staleness and spatial mismatch surfaced rather than hidden")
-    print("  - domain separation, and refusal to issue a verdict without evidence")
-    print()
-    print("ORCA output is not an official advisory. Follow IMD and INCOIS bulletins.")
+    print("\nORCA output is not an official advisory. Follow IMD and INCOIS bulletins.")
     print(BAR)
     return 0
 
@@ -127,8 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--lat", type=float, default=9.93)
     p.add_argument("--lon", type=float, default=76.26)
     p.add_argument("--label", default="near Kochi")
-    p.add_argument("--when", default=None,
-                   help="ISO-8601 UTC; default = tomorrow 06:00 IST")
+    p.add_argument("--when", default=None, help="ISO-8601 UTC; default tomorrow 06:00 IST")
     a = p.parse_args(argv)
     when = (datetime.fromisoformat(a.when).replace(tzinfo=timezone.utc) if a.when
             else (datetime.now(IST) + timedelta(days=1)).replace(

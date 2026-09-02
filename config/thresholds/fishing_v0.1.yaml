@@ -1,0 +1,30 @@
+set_id: fishing_v0.1
+domain: FISHING_SUITABILITY
+status: SCIENTIFIC_VALIDATION_REQUIRED
+rationale: >
+  Productivity-catchability relationships are region, season and species
+  dependent. These are placeholder engineering parameters that make the
+  pipeline testable; they must be validated against regional fisheries science
+  before operational use. ORCA does not reproduce the INCOIS PFZ advisory: the
+  reserved term "PFZ" applies only to the authoritative product, and ORCA's own
+  combination of SST and chlorophyll is reported as orca_productivity_indicator.
+validation_reference: null
+
+required_factors: []
+preferred_factors: [pfz_advisory, chlorophyll_ratio_to_local_median, sst_anomaly_abs]
+optional_factors: [thermal_front_distance_km]
+min_usable_factors: 1
+
+factors:
+  chlorophyll_ratio_to_local_median:
+    unit: ratio
+    higher_is_worse: false
+    bands: {favourable: [1.3, null], marginal: [0.8, 1.3], unfavourable: [null, 0.8]}
+  sst_anomaly_abs:
+    unit: degC
+    higher_is_worse: true
+    bands: {favourable: [null, 1.0], marginal: [1.0, 2.0], unfavourable: [2.0, null]}
+  pfz_distance_km:
+    unit: km
+    higher_is_worse: true
+    bands: {favourable: [null, 1], marginal: [1, 25], unfavourable: [25, null]}

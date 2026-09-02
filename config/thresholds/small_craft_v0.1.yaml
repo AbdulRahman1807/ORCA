@@ -1,0 +1,42 @@
+set_id: small_craft_v0.1
+domain: SAFETY
+status: SCIENTIFIC_VALIDATION_REQUIRED
+applies_to:
+  vessel_class: small_craft
+rationale: >
+  Initial engineering parameters chosen to make the assessment pipeline
+  implementable and testable. NOT derived from a validated study. Requires
+  review against Indian marine safety guidance and regional small-craft
+  operating practice before any operational use. Every answer that uses this
+  set exposes the set id and this status.
+validation_reference: null
+
+required_factors: [official_warning_status, significant_wave_height, wind_speed]
+preferred_factors: [swell_height, lightning, cyclone_distance_km]
+optional_factors: [current_speed, wind_gust]
+
+factors:
+  significant_wave_height:
+    unit: m
+    higher_is_worse: true
+    bands: {favourable: [null, 1.5], marginal: [1.5, 2.5], unfavourable: [2.5, 3.5], unsafe: [3.5, null]}
+  wind_speed:
+    unit: m s-1
+    higher_is_worse: true
+    bands: {favourable: [null, 8], marginal: [8, 12], unfavourable: [12, 17], unsafe: [17, null]}
+  wind_gust:
+    unit: m s-1
+    higher_is_worse: true
+    bands: {favourable: [null, 11], marginal: [11, 15], unfavourable: [15, 21], unsafe: [21, null]}
+  swell_height:
+    unit: m
+    higher_is_worse: true
+    bands: {favourable: [null, 1.5], marginal: [1.5, 2.5], unfavourable: [2.5, 3.5], unsafe: [3.5, null]}
+  current_speed:
+    unit: m s-1
+    higher_is_worse: true
+    bands: {favourable: [null, 0.5], marginal: [0.5, 1.0], unfavourable: [1.0, 1.5], unsafe: [1.5, null]}
+  cyclone_distance_km:
+    unit: km
+    higher_is_worse: false
+    bands: {favourable: [500, null], marginal: [300, 500], unfavourable: [150, 300], unsafe: [null, 150]}

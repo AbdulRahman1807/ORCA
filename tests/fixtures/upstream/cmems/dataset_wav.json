@@ -1,0 +1,1363 @@
+{
+  "id": "cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411",
+  "type": "Feature",
+  "stac_version": "1.0.0",
+  "stac_extensions": [
+    "https://stac-extensions.github.io/datacube/v2.1.0/schema.json"
+  ],
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -180,
+          -80
+        ],
+        [
+          -180,
+          90
+        ],
+        [
+          179.91666666666663,
+          90
+        ],
+        [
+          179.91666666666663,
+          -80
+        ],
+        [
+          -180,
+          -80
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    -180,
+    -80,
+    179.91666666666663,
+    90
+  ],
+  "properties": {
+    "datetime": null,
+    "start_datetime": "2022-11-01T03:00:00Z",
+    "end_datetime": "2026-09-12T00:00:00Z",
+    "Conventions": "CF-1.6",
+    "area": "GLO",
+    "contact": "servicedesk.cmems@mercator-ocean.eu",
+    "credit": "E.U. Copernicus Marine Service Information (CMEMS)",
+    "geospatial_lat_max": 90,
+    "geospatial_lat_min": -80,
+    "geospatial_lat_step": 0.08333587646484375,
+    "geospatial_lat_units": "degree",
+    "geospatial_lon_max": 179.9167022705078,
+    "geospatial_lon_min": -180,
+    "geospatial_lon_step": 0.0833282470703125,
+    "geospatial_lon_units": "degree",
+    "institution": "METEO-FRANCE",
+    "producer": "CMEMS - Global Monitoring and Forecasting Centre",
+    "product": "GLOBAL_ANALYSIS_FORECAST_WAV_001_027",
+    "references": "http://marine.copernicus.eu",
+    "cube:dimensions": {
+      "time": {
+        "type": "temporal",
+        "extent": [
+          "2022-11-01T03:00:00Z",
+          "2026-09-12T00:00:00Z"
+        ],
+        "step": "PT10800S"
+      },
+      "latitude": {
+        "type": "spatial",
+        "axis": "y",
+        "extent": [
+          -80,
+          90
+        ],
+        "step": 0.08333333333333333,
+        "reference_system": 4326
+      },
+      "longitude": {
+        "type": "spatial",
+        "axis": "x",
+        "extent": [
+          -180,
+          179.91666666666663
+        ],
+        "step": 0.08333333333333333,
+        "reference_system": 4326
+      }
+    },
+    "cube:variables": {
+      "VCMX": {
+        "id": "VCMX",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "m",
+        "standardName": "sea_surface_wave_maximum_height",
+        "abbreviation": "VCMX",
+        "name": {
+          "en": "Maximum crest trough wave height"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": 0.7599999904632568,
+        "valueMax": 12.670000076293945,
+        "valueDiffMax": 5.955000042915344,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "amp",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VHM0": {
+        "id": "VHM0",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "m",
+        "standardName": "sea_surface_wave_significant_height",
+        "abbreviation": "VHM0",
+        "name": {
+          "en": "Spectral significant wave height (Hm0)"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": 0.4099999964237213,
+        "valueMax": 6.869999885559082,
+        "valueDiffMax": 3.2299999445676804,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "amp",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VHM0_SW1": {
+        "id": "VHM0_SW1",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "m",
+        "standardName": "sea_surface_primary_swell_wave_significant_height",
+        "abbreviation": "VHM0_SW1",
+        "name": {
+          "en": "Spectral significant primary swell wave height"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": 0.23999999463558197,
+        "valueMax": 5.049999713897705,
+        "valueDiffMax": 2.4049998596310616,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "amp",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VHM0_SW2": {
+        "id": "VHM0_SW2",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "m",
+        "standardName": "sea_surface_secondary_swell_wave_significant_height",
+        "abbreviation": "VHM0_SW2",
+        "name": {
+          "en": "Spectral significant secondary swell wave height"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": 0.009999999776482582,
+        "valueMax": 2.2799999713897705,
+        "valueDiffMax": 1.134999985806644,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "amp",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VHM0_WW": {
+        "id": "VHM0_WW",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "m",
+        "standardName": "sea_surface_wind_wave_significant_height",
+        "abbreviation": "VHM0_WW",
+        "name": {
+          "en": "Spectral significant wind wave height"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": 0,
+        "valueMax": 4.889999866485596,
+        "valueDiffMax": 2.444999933242798,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "amp",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VMDR": {
+        "id": "VMDR",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "degree",
+        "standardName": "sea_surface_wave_from_direction",
+        "abbreviation": "VMDR",
+        "name": {
+          "en": "Mean wave direction from (Mdir)"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 180,
+        "scale": 0.009999999776482582,
+        "valueMin": 25.410003662109375,
+        "valueMax": 343.75,
+        "valueDiffMax": 159.1699981689453,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "cyclic",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VMDR_SW1": {
+        "id": "VMDR_SW1",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "degree",
+        "standardName": "sea_surface_primary_swell_wave_from_direction",
+        "abbreviation": "VMDR_SW1",
+        "name": {
+          "en": "Mean primary swell wave direction from"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 180,
+        "scale": 0.009999999776482582,
+        "valueMin": 19.850006103515625,
+        "valueMax": 344.3399963378906,
+        "valueDiffMax": 162.2449951171875,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "cyclic",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VMDR_SW2": {
+        "id": "VMDR_SW2",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "degree",
+        "standardName": "sea_surface_secondary_swell_wave_from_direction",
+        "abbreviation": "VMDR_SW2",
+        "name": {
+          "en": "Mean secondary swell wave direction from"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 180,
+        "scale": 0.009999999776482582,
+        "valueMin": 13.19000244140625,
+        "valueMax": 347.510009765625,
+        "valueDiffMax": 167.16000366210938,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "cyclic",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VMDR_WW": {
+        "id": "VMDR_WW",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "degree",
+        "standardName": "sea_surface_wind_wave_from_direction",
+        "abbreviation": "VMDR_WW",
+        "name": {
+          "en": "Mean wind wave direction from"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 180,
+        "scale": 0.009999999776482582,
+        "valueMin": 13.720001220703125,
+        "valueMax": 349.9700012207031,
+        "valueDiffMax": 168.125,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "cyclic",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VMXL": {
+        "id": "VMXL",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "m",
+        "standardName": "sea_surface_wave_maximum_crest_height",
+        "abbreviation": "VMXL",
+        "name": {
+          "en": "Height of the highest crest"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": -1,
+        "valueMax": 1,
+        "valueDiffMax": 1,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": false,
+        "logScale": false,
+        "colormapId": "amp",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VPED": {
+        "id": "VPED",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "degree",
+        "standardName": "sea_surface_wave_from_direction_at_variance_spectral_density_maximum",
+        "abbreviation": "VPED",
+        "name": {
+          "en": "Wave principal direction at spectral peak"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 180,
+        "scale": 0.009999999776482582,
+        "valueMin": 22.5,
+        "valueMax": 351.1099853515625,
+        "valueDiffMax": 164.30499267578125,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "cyclic",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VSDX": {
+        "id": "VSDX",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "m s-1",
+        "standardName": "sea_surface_wave_stokes_drift_x_velocity",
+        "abbreviation": "VSDX",
+        "name": {
+          "en": "Stokes drift U"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": -0.14000000059604645,
+        "valueMax": 0.22999998927116394,
+        "valueDiffMax": 0.1849999949336052,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": false,
+        "logScale": false,
+        "colormapId": "viridis",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VSDY": {
+        "id": "VSDY",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "m s-1",
+        "standardName": "sea_surface_wave_stokes_drift_y_velocity",
+        "abbreviation": "VSDY",
+        "name": {
+          "en": "Stokes drift V"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": -0.17000000178813934,
+        "valueMax": 0.17000000178813934,
+        "valueDiffMax": 0.17000000178813934,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": false,
+        "logScale": false,
+        "colormapId": "balance",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VTM01_SW1": {
+        "id": "VTM01_SW1",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "s",
+        "standardName": "sea_surface_primary_swell_wave_mean_period",
+        "abbreviation": "VTM01_SW1",
+        "name": {
+          "en": "Spectral moments (0,1) primary swell wave period"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": 3.569999933242798,
+        "valueMax": 12.319999694824219,
+        "valueDiffMax": 4.3749998807907104,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "tempo",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VTM01_SW2": {
+        "id": "VTM01_SW2",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "s",
+        "standardName": "sea_surface_secondary_swell_wave_mean_period",
+        "abbreviation": "VTM01_SW2",
+        "name": {
+          "en": "Spectral moments (0,1) secondary swell wave period"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": 2.5899999141693115,
+        "valueMax": 16.389999389648438,
+        "valueDiffMax": 6.899999737739563,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "tempo",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VTM01_WW": {
+        "id": "VTM01_WW",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "s",
+        "standardName": "sea_surface_wind_wave_mean_period",
+        "abbreviation": "VTM01_WW",
+        "name": {
+          "en": "Spectral moments (0,1) wind wave period"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": 0,
+        "valueMax": 8.380000114440918,
+        "valueDiffMax": 4.190000057220459,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "tempo",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VTM02": {
+        "id": "VTM02",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "s",
+        "standardName": "sea_surface_wave_mean_period_from_variance_spectral_density_second_frequency_moment",
+        "abbreviation": "VTM02",
+        "name": {
+          "en": "Spectral moments (0,2) wave period (Tm02)"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": 3,
+        "valueMax": 9.789999961853027,
+        "valueDiffMax": 3.3949999809265137,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "tempo",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VTM10": {
+        "id": "VTM10",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "s",
+        "standardName": "sea_surface_wave_mean_period_from_variance_spectral_density_inverse_frequency_moment",
+        "abbreviation": "VTM10",
+        "name": {
+          "en": "Spectral moments (-1,0) wave period (Tm-10)"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": 3.8999998569488525,
+        "valueMax": 12.699999809265137,
+        "valueDiffMax": 4.399999976158142,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "tempo",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      },
+      "VTPK": {
+        "id": "VTPK",
+        "dimensions": [
+          "time",
+          "latitude",
+          "longitude"
+        ],
+        "type": "data",
+        "unit": "s",
+        "standardName": "sea_surface_wave_period_at_variance_spectral_density_maximum",
+        "abbreviation": "VTPK",
+        "name": {
+          "en": "Wave period at spectral peak / peak period (Tp)"
+        },
+        "unitConversion": null,
+        "missingValue": -32767,
+        "offset": 0,
+        "scale": 0.009999999776482582,
+        "valueMin": 4.25,
+        "valueMax": 15.609999656677246,
+        "valueDiffMax": 5.679999828338623,
+        "valueDiffRelMax": 25,
+        "valueClamp": true,
+        "hasLogScale": true,
+        "logScale": false,
+        "colormapId": "tempo",
+        "colormapInvert": false,
+        "colormapDiffId": "balance",
+        "colormapDiffInvert": false,
+        "valueColor": false
+      }
+    },
+    "title": "cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411",
+    "admp_in_preparation": false,
+    "admp_released_date": "2024-11-26T13:00:00.000Z",
+    "admp_retired_date": null,
+    "admp_updated": "2026-09-02T09:55:14.439699Z",
+    "admp_updating_start_date": null,
+    "admp_updated_data": "2026-09-02T09:55:10.814Z",
+    "admp_sample_period": "3-hour",
+    "admp_title": "3-hourly"
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../catalog.stac.json",
+      "title": "Copernicus Marine Data Store",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../product.stac.json",
+      "title": "GLOBAL_ANALYSISFORECAST_WAV_001_027",
+      "type": "application/json"
+    },
+    {
+      "rel": "collection",
+      "href": "../product.stac.json",
+      "title": "GLOBAL_ANALYSISFORECAST_WAV_001_027",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "native": {
+      "id": "native",
+      "href": "https://s3.waw3-1.cloudferro.com/mdl-native-14/native/GLOBAL_ANALYSISFORECAST_WAV_001_027/cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411",
+      "type": "application/x-netcdf",
+      "roles": [
+        "data"
+      ],
+      "title": "Native dataset",
+      "description": "The original, non-ARCO version of this dataset, as published by the data provider."
+    },
+    "wmts": {
+      "id": "wmts",
+      "href": "https://wmts.marine.copernicus.eu/teroWmts/GLOBAL_ANALYSISFORECAST_WAV_001_027/cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411?service=WMTS&request=GetCapabilities",
+      "type": "application/xml",
+      "roles": [
+        "visual"
+      ],
+      "title": "OGC Web Map Tile Service (WMTS)",
+      "description": "Georeferenced map tiles using the OGC WMTS standard."
+    },
+    "timeChunked": {
+      "id": "timeChunked",
+      "href": "https://s3.waw3-1.cloudferro.com/mdl-arco-time-015/arco/GLOBAL_ANALYSISFORECAST_WAV_001_027/cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411/timeChunked.zarr",
+      "type": "application/vnd+zarr",
+      "roles": [
+        "data"
+      ],
+      "title": "Time-chunked dataset in Zarr",
+      "description": "An ARCO version of this dataset with a small chunk size in the temporal dimension.\n    \nNote that the link (`href`) associated to this asset is the base directory\nof this dataset, but it cannot be accessed directly.\n\nTo download this dataset or part of it, \nuse a library such as [xarray](https://docs.xarray.dev/).",
+      "xarray:open_kwargs": {
+        "consolidated": true
+      },
+      "viewDims": {
+        "time": {
+          "chunkLen": {
+            "VCMX": 1,
+            "VHM0": 1,
+            "VHM0_SW1": 1,
+            "VHM0_SW2": 1,
+            "VHM0_WW": 1,
+            "VMDR": 1,
+            "VMDR_SW1": 1,
+            "VMDR_SW2": 1,
+            "VMDR_WW": 1,
+            "VMXL": 1,
+            "VPED": 1,
+            "VSDX": 1,
+            "VSDY": 1,
+            "VTM01_SW1": 1,
+            "VTM01_SW2": 1,
+            "VTM01_WW": 1,
+            "VTM02": 1,
+            "VTM10": 1,
+            "VTPK": 1
+          },
+          "len": 11288,
+          "units": "milliseconds since 1970-01-01 00:00:00Z (no leap seconds)",
+          "coords": {
+            "type": "minMaxStep",
+            "min": 1667271600000,
+            "max": 1789171200000,
+            "step": 10800000,
+            "len": 11288
+          }
+        },
+        "latitude": {
+          "chunkLen": {
+            "VCMX": 512,
+            "VHM0": 512,
+            "VHM0_SW1": 512,
+            "VHM0_SW2": 512,
+            "VHM0_WW": 512,
+            "VMDR": 512,
+            "VMDR_SW1": 512,
+            "VMDR_SW2": 512,
+            "VMDR_WW": 512,
+            "VMXL": 512,
+            "VPED": 512,
+            "VSDX": 512,
+            "VSDY": 512,
+            "VTM01_SW1": 512,
+            "VTM01_SW2": 512,
+            "VTM01_WW": 512,
+            "VTM02": 512,
+            "VTM10": 512,
+            "VTPK": 512
+          },
+          "len": 2041,
+          "units": "degrees_north",
+          "coords": {
+            "type": "minMaxStep",
+            "min": -80,
+            "max": 90,
+            "step": 0.08333333333333333,
+            "len": 2041
+          }
+        },
+        "longitude": {
+          "chunkLen": {
+            "VCMX": 2048,
+            "VHM0": 2048,
+            "VHM0_SW1": 2048,
+            "VHM0_SW2": 2048,
+            "VHM0_WW": 2048,
+            "VMDR": 2048,
+            "VMDR_SW1": 2048,
+            "VMDR_SW2": 2048,
+            "VMDR_WW": 2048,
+            "VMXL": 2048,
+            "VPED": 2048,
+            "VSDX": 2048,
+            "VSDY": 2048,
+            "VTM01_SW1": 2048,
+            "VTM01_SW2": 2048,
+            "VTM01_WW": 2048,
+            "VTM02": 2048,
+            "VTM10": 2048,
+            "VTPK": 2048
+          },
+          "len": 4320,
+          "units": "degrees_east",
+          "coords": {
+            "type": "minMaxStep",
+            "min": -180,
+            "max": 179.91666666666663,
+            "step": 0.08333333333333333,
+            "len": 4320
+          }
+        }
+      },
+      "viewVariables": {
+        "VCMX": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VHM0": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VHM0_SW1": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VHM0_SW2": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VHM0_WW": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VMDR": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VMDR_SW1": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VMDR_SW2": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VMDR_WW": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VMXL": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VPED": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VSDX": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VSDY": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VTM01_SW1": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VTM01_SW2": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VTM01_WW": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VTM02": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VTM10": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VTPK": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        }
+      },
+      "isAggregated": false
+    },
+    "downsampled4": {
+      "id": "downsampled4",
+      "href": "https://s3.waw3-1.cloudferro.com/mdl-arco-time-015/arco/GLOBAL_ANALYSISFORECAST_WAV_001_027/cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411/downsampled4.zarr",
+      "type": "application/vnd+zarr",
+      "roles": [
+        "data",
+        "downsampled"
+      ],
+      "title": "Downsampled dataset (by 4) in Zarr",
+      "description": "An ARCO version of this dataset, downsampled in the spatial dimensions by 4.\n    \nNote that the link (`href`) associated to this asset is the base directory\nof this dataset, but it cannot be accessed directly.\n\nTo download this dataset or part of it, \nuse a library such as [xarray](https://docs.xarray.dev/).",
+      "xarray:open_kwargs": {
+        "consolidated": true
+      },
+      "viewDims": {
+        "time": {
+          "chunkLen": {
+            "VCMX": 1,
+            "VHM0": 1,
+            "VHM0_SW1": 1,
+            "VHM0_SW2": 1,
+            "VHM0_WW": 1,
+            "VMDR": 1,
+            "VMDR_SW1": 1,
+            "VMDR_SW2": 1,
+            "VMDR_WW": 1,
+            "VMXL": 1,
+            "VPED": 1,
+            "VSDX": 1,
+            "VSDY": 1,
+            "VTM01_SW1": 1,
+            "VTM01_SW2": 1,
+            "VTM01_WW": 1,
+            "VTM02": 1,
+            "VTM10": 1,
+            "VTPK": 1
+          },
+          "len": 11288,
+          "units": "milliseconds since 1970-01-01 00:00:00Z (no leap seconds)",
+          "coords": {
+            "type": "minMaxStep",
+            "min": 1667271600000,
+            "max": 1789171200000,
+            "step": 10800000,
+            "len": 11288
+          }
+        },
+        "latitude": {
+          "chunkLen": {
+            "VCMX": 511,
+            "VHM0": 511,
+            "VHM0_SW1": 511,
+            "VHM0_SW2": 511,
+            "VHM0_WW": 511,
+            "VMDR": 511,
+            "VMDR_SW1": 511,
+            "VMDR_SW2": 511,
+            "VMDR_WW": 511,
+            "VMXL": 511,
+            "VPED": 511,
+            "VSDX": 511,
+            "VSDY": 511,
+            "VTM01_SW1": 511,
+            "VTM01_SW2": 511,
+            "VTM01_WW": 511,
+            "VTM02": 511,
+            "VTM10": 511,
+            "VTPK": 511
+          },
+          "len": 511,
+          "units": "degrees_north",
+          "coords": {
+            "type": "minMaxStep",
+            "min": -80,
+            "max": 90,
+            "step": 0.3333333333333333,
+            "len": 511
+          }
+        },
+        "longitude": {
+          "chunkLen": {
+            "VCMX": 1080,
+            "VHM0": 1080,
+            "VHM0_SW1": 1080,
+            "VHM0_SW2": 1080,
+            "VHM0_WW": 1080,
+            "VMDR": 1080,
+            "VMDR_SW1": 1080,
+            "VMDR_SW2": 1080,
+            "VMDR_WW": 1080,
+            "VMXL": 1080,
+            "VPED": 1080,
+            "VSDX": 1080,
+            "VSDY": 1080,
+            "VTM01_SW1": 1080,
+            "VTM01_SW2": 1080,
+            "VTM01_WW": 1080,
+            "VTM02": 1080,
+            "VTM10": 1080,
+            "VTPK": 1080
+          },
+          "len": 1080,
+          "units": "degrees_east",
+          "coords": {
+            "type": "minMaxStep",
+            "min": -180,
+            "max": 179.66666666666663,
+            "step": 0.3333333333333333,
+            "len": 1080
+          }
+        }
+      },
+      "viewVariables": {
+        "VCMX": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VHM0": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VHM0_SW1": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VHM0_SW2": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VHM0_WW": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VMDR": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VMDR_SW1": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VMDR_SW2": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VMDR_WW": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VMXL": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VPED": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VSDX": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VSDY": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VTM01_SW1": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VTM01_SW2": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VTM01_WW": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VTM02": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VTM10": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        },
+        "VTPK": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1553445.9259259258
+        }
+      },
+      "isAggregated": true
+    },
+    "geoChunked": {
+      "id": "geoChunked",
+      "href": "https://s3.waw3-1.cloudferro.com/mdl-arco-geo-015/arco/GLOBAL_ANALYSISFORECAST_WAV_001_027/cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411/geoChunked.zarr",
+      "type": "application/vnd+zarr",
+      "roles": [
+        "data"
+      ],
+      "title": "Geo-chunked dataset in Zarr",
+      "description": "An ARCO version of this dataset with a small chunk size in the spatial dimensions.\n    \nNote that the link (`href`) associated to this asset is the base directory\nof this dataset, but it cannot be accessed directly.\n\nTo download this dataset or part of it, \nuse a library such as [xarray](https://docs.xarray.dev/).",
+      "xarray:open_kwargs": {
+        "consolidated": true
+      },
+      "viewDims": {
+        "time": {
+          "chunkLen": {
+            "VCMX": 1184,
+            "VHM0": 1184,
+            "VHM0_SW1": 1184,
+            "VHM0_SW2": 1184,
+            "VHM0_WW": 1184,
+            "VMDR": 1184,
+            "VMDR_SW1": 1184,
+            "VMDR_SW2": 1184,
+            "VMDR_WW": 1184,
+            "VMXL": 1184,
+            "VPED": 1184,
+            "VSDX": 1184,
+            "VSDY": 1184,
+            "VTM01_SW1": 1184,
+            "VTM01_SW2": 1184,
+            "VTM01_WW": 1184,
+            "VTM02": 1184,
+            "VTM10": 1184,
+            "VTPK": 1184
+          },
+          "len": 11288,
+          "units": "milliseconds since 1970-01-01 00:00:00Z (no leap seconds)",
+          "coords": {
+            "type": "minMaxStep",
+            "min": 1667271600000,
+            "max": 1789171200000,
+            "step": 10800000,
+            "len": 11288
+          }
+        },
+        "latitude": {
+          "chunkLen": {
+            "VCMX": 16,
+            "VHM0": 16,
+            "VHM0_SW1": 16,
+            "VHM0_SW2": 16,
+            "VHM0_WW": 16,
+            "VMDR": 16,
+            "VMDR_SW1": 16,
+            "VMDR_SW2": 16,
+            "VMDR_WW": 16,
+            "VMXL": 16,
+            "VPED": 16,
+            "VSDX": 16,
+            "VSDY": 16,
+            "VTM01_SW1": 16,
+            "VTM01_SW2": 16,
+            "VTM01_WW": 16,
+            "VTM02": 16,
+            "VTM10": 16,
+            "VTPK": 16
+          },
+          "len": 2041,
+          "units": "degrees_north",
+          "coords": {
+            "type": "minMaxStep",
+            "min": -80,
+            "max": 90,
+            "step": 0.08333333333333333,
+            "len": 2041
+          }
+        },
+        "longitude": {
+          "chunkLen": {
+            "VCMX": 32,
+            "VHM0": 32,
+            "VHM0_SW1": 32,
+            "VHM0_SW2": 32,
+            "VHM0_WW": 32,
+            "VMDR": 32,
+            "VMDR_SW1": 32,
+            "VMDR_SW2": 32,
+            "VMDR_WW": 32,
+            "VMXL": 32,
+            "VPED": 32,
+            "VSDX": 32,
+            "VSDY": 32,
+            "VTM01_SW1": 32,
+            "VTM01_SW2": 32,
+            "VTM01_WW": 32,
+            "VTM02": 32,
+            "VTM10": 32,
+            "VTPK": 32
+          },
+          "len": 4320,
+          "units": "degrees_east",
+          "coords": {
+            "type": "minMaxStep",
+            "min": -180,
+            "max": 179.91666666666663,
+            "step": 0.08333333333333333,
+            "len": 4320
+          }
+        }
+      },
+      "viewVariables": {
+        "VCMX": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VHM0": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VHM0_SW1": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VHM0_SW2": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VHM0_WW": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VMDR": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VMDR_SW1": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VMDR_SW2": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VMDR_WW": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VMXL": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VPED": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VSDX": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VSDY": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VTM01_SW1": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VTM01_SW2": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VTM01_WW": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VTM02": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VTM10": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        },
+        "VTPK": {
+          "dtype": "<i2",
+          "itemSize": 2,
+          "chunkSize": 1426371.7647058824
+        }
+      },
+      "isAggregated": false
+    }
+  },
+  "collection": "GLOBAL_ANALYSISFORECAST_WAV_001_027"
+}

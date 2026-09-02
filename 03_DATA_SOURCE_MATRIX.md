@@ -465,3 +465,59 @@ highest-value action for the MVP — it is required for any present-day verdict.
 retrieved what exists, labelled staleness and spatial mismatch, and refused to issue a
 verdict it could not support.
 
+---
+
+## 15. Live Verification — CMEMS (S-07), 2026-09-02
+
+### 15.1 Correction to §7 (S-07 status)
+
+The audit recorded CMEMS as **AUTH REQUIRED**. Live testing shows that is true of
+the subsetting and download services, but **not** of the ARCO (Zarr) object store:
+
+| Endpoint | Unauthenticated result |
+|---|---|
+| `stac.marine.copernicus.eu/metadata/catalog.stac.json` | **200** — 307 products enumerated |
+| ARCO store `.zmetadata` | **200** |
+| ARCO data chunk `VHM0/0.0.0` | **200**, 521,648 bytes |
+| `s3.waw3-1.cloudferro.com/mdl-arco-time-001` (bucket root) | 403 — listing denied, object reads permitted |
+
+Revised status: **CONFIRMED (ARCO store, no credentials observed)** for the datasets
+below; AUTH REQUIRED remains recorded for the subsetting/download services. Credentials
+are still supported by the adapter and used when configured; their absence is not
+treated as a failure.
+
+### 15.2 Datasets bound (ids and variables read from the public STAC catalogue)
+
+| Capability | Dataset | Variables | Grid | Cadence | Coverage |
+|---|---|---|---|---|---|
+| `get_wave_conditions` | `cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411` | VHM0, VTPK, VMDR, VHM0_SW1, VTM01_SW1, VCMX | 1/12° | PT3H | 2022-11-01 → **2026-09-12** |
+| `get_currents` | `cmems_mod_glo_phy_anfc_merged-uv_PT1H-i_202211` | utotal, vtotal, uo, vo | 1/12° | PT1H | 2020-11-01 → **2026-09-11** |
+| `get_weather` (wind) | `cmems_obs-wind_glo_phy_nrt_l4_0.125deg_PT1H_202207` | eastward_wind, northward_wind | 0.125° | PT1H | 2020-07-01 → 2026-09-01 |
+
+**The wave and current datasets extend past today** — they are analysis *and forecast*
+products. This is the first source in the project able to answer a question about
+tomorrow.
+
+**The wind dataset does not.** It is an L4 near-real-time *observation* product with no
+forecast horizon, so a query for tomorrow correctly yields `INSUFFICIENT_COVERAGE`. A
+wind forecast still requires IMD or another NWP source.
+
+### 15.3 Findings
+
+| ID | Finding | Consequence |
+|---|---|---|
+| **F-8** | Coastal cells are land-masked in the wave model. Kochi (9.93 N, 76.26 E) returns no value. | Adapter searches outward for the nearest valid ocean cell within a configurable radius (default 60 km) and reports the distance. At Kochi the nearest valid cell is 10.3 km offshore. |
+| **F-9** | VHM0 is stored as `int16` with `scale_factor = 0.01`. | Reading the raw integer would be wrong by two orders of magnitude. Scale and offset are read from the store and applied; a regression test asserts it. |
+| **F-10** | Zarr omits chunks that are entirely fill. | A missing chunk reads as *no data*, never as `0.0` — which would present as a calm sea. Asserted by test. |
+| **F-11** | The store publishes no scalar wind speed, only components. | `wind_speed` and `wind_direction` are **derived** by the geospatial kernel with a recorded method, version and input provenance ids — not by the adapter. |
+
+### 15.4 Consequence for `22_MVP_SCOPE.md`
+
+§7 recorded `get_wave_conditions` and `get_currents` as "live with credentials". They are
+live **without** credentials. The MVP floor is materially stronger than recorded: six
+capability tools now return live data, and wave/current forecasts cover the requested
+window.
+
+The remaining blocker for a SAFETY verdict is **`official_warning_status`**, which has no
+substitute by design — an official warning cannot be synthesised from model fields.
+
