@@ -22,3 +22,6 @@ __pycache__/
 scratch/
 *.log
 config/tls/incois_bundle.pem
+
+# versioned boundary snapshots -- regenerate with scripts/capture_boundaries.py
+data/boundaries/

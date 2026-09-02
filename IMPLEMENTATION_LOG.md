@@ -1,8 +1,12 @@
 # ORCA — Implementation Log
 
 **Session:** 2026-09-02 · **Phase:** design set → Phase 1–6 partial
-**State at end of session:** ~45% of backend logic · 4,079 lines implementation ·
-695 lines tests · 63 tests passing (0.23 s, all offline)
+**State at end of session:** ~55% of backend logic · 5,760 lines implementation ·
+1,348 lines tests · 122 tests passing (0.25 s, all offline)
+
+*Session 2 added the MarineRegions boundary adapter and the REGULATORY domain
+(§10). Everything above §10 describes the state after session 1 and is still
+current except where §10 says otherwise.*
 
 This document records what was built, why, and the decisions taken while building it.
 It is the handover artifact: read this before resuming.
@@ -15,17 +19,23 @@ It is the handover artifact: read this before resuming.
 |---|---|
 | Documentation | Design documents **01–22** written (23–30 not started) |
 | Phase 0 — foundation | Repo, venv, package layout, test harness |
-| Phase 1 — adapters | **INCOIS ERDDAP** and **CMEMS** adapters, both live and verified |
+| Phase 1 — adapters | **INCOIS ERDDAP**, **CMEMS** and **MarineRegions** adapters, all live and verified |
 | Phase 2 — canonical schema | Complete, with structural invariants enforced |
-| Phase 3 — capability tools | **6 of 11 P0 tools** |
+| Phase 3 — capability tools | **7 of 11 P0 tools** |
 | Phase 4 — agents | **Not started** |
 | Phase 5 — LangGraph | **Not started** |
-| Phase 6 — geospatial kernel | Geodesy, temporal alignment, derivations (~50 %) |
-| — assessment engine | Thresholds, sufficiency, verdicts, confidence, synthesis (~85 %) |
+| Phase 6 — geospatial kernel | Geodesy, temporal alignment, derivations, containment (~65 %) |
+| — assessment engine | Thresholds, sufficiency, verdicts, confidence, synthesis, REGULATORY (~90 %) |
 
-**Milestone reached:** a live, evidence-backed positive verdict from current data —
+**Milestones reached.** A live, evidence-backed positive verdict from current data —
 `FISHING_SUITABILITY = FAVOURABLE`, driven by a chlorophyll ratio derived from CMEMS
 ocean colour — while `SAFETY` correctly refuses for want of an official warning source.
+
+Then, in session 2, a second fully evidenced domain: `REGULATORY`, decided by
+point-in-polygon against versioned MarineRegions geometry. A position 60 km inside the
+Sri Lankan EEZ returns `RESTRICTED` with the boundary, its dataset version and the
+distance to the edge — and that constraint is stated even when safety cannot be
+assessed, because it holds whatever the weather does.
 
 ---
 
@@ -41,34 +51,43 @@ backend/orca/
 │   ├── assessment.py             Evidence, Claim, Assessment, Recommendation
 │   ├── envelope.py               OrcaEnvelope + provenance-join invariant
 │   └── units.py                  unit aliases + explicit conversion
-├── adapters/        1648 lines   THE ONLY PLACE WITH PROVIDER KNOWLEDGE
+├── adapters/        2590 lines   THE ONLY PLACE WITH PROVIDER KNOWLEDGE
 │   ├── incois_erddap/            client, metadata capture + validation, bindings, adapter
-│   └── cmems/                    store (Zarr v2 reader), client, bindings, adapter
-├── tools/            394 lines   capability contracts + multi-source fallback
+│   ├── cmems/                    store (Zarr v2 reader), client, bindings, adapter
+│   └── marineregions/            WFS client, snapshot writer/reader, boundary adapter
+├── tools/            487 lines   capability contracts + multi-source fallback
 │   ├── base.py                   validation, ToolRun, collect_from_sources
 │   ├── ocean.py                  get_ocean_observations, get_sst, get_chlorophyll
-│   └── marine.py                 get_wave_conditions, get_currents
-├── geospatial/       377 lines   deterministic kernel
+│   ├── marine.py                 get_wave_conditions, get_currents
+│   └── boundaries.py             get_maritime_boundaries
+├── geospatial/       622 lines   deterministic kernel
 │   ├── geometry.py               geodesic distance/bbox, vector magnitude+direction
+│   ├── topology.py               ray casting, holes, antimeridian, edge distance
 │   ├── temporal.py               representativeness gate, alignment, freshness
 │   ├── derive.py                 vector pairs, ratio-to-local-median
 │   └── methods.py                method id + version registry
-├── assessment/       598 lines   deterministic rule engine (no LLM)
+├── assessment/      1015 lines   deterministic rule engine (no LLM)
 │   ├── thresholds.py             YAML threshold sets with validation status
 │   ├── staleness.py              per-parameter usable-age policy
+│   ├── jurisdiction.py           home/foreign placement + boundary implications
 │   ├── engine.py                 sufficiency → bands → worst-factor → confidence
+│   ├── regulatory.py             containment → PERMITTED/RESTRICTED/PROHIBITED/UNKNOWN
 │   └── synthesis.py              cross-domain headline, limiting factor
-└── cli/query.py      187 lines   vertical slice runner
+└── cli/query.py      227 lines   vertical slice runner
 
-config/    datasets.json (captured) · thresholds/*.yaml · staleness.yaml · tls/
-scripts/   capture_datasets.py
-tests/     unit/ adapters/ fixtures/upstream/{incois_erddap,cmems}/
+config/    datasets.json (captured) · boundaries.yaml · thresholds/*.yaml ·
+           staleness.yaml · tls/
+data/      boundaries/<version>/  captured snapshots — GIT-IGNORED, regenerate
+scripts/   capture_datasets.py · capture_boundaries.py
+tests/     unit/ adapters/ fixtures/upstream/{incois_erddap,cmems,marineregions}/
 ```
 
 **Layering rule.** `agents → tools → adapters → source`. Nothing above `adapters/`
 knows a URL, a credential, ERDDAP selector syntax or that Zarr exists. This was
 maintained throughout and should be enforced by an import-linter contract when
-`agents/` lands (`18_REPOSITORY_STRUCTURE.md` §1).
+`agents/` lands (`18_REPOSITORY_STRUCTURE.md` §1). `assessment/` does not import
+from `adapters/` either: both read `config/boundaries.yaml`, each taking the
+section it owns (D-17).
 
 ---
 
@@ -263,6 +282,15 @@ engineering parameters, surfaced in every answer as
 
 **O-3 · Staleness tolerances are unvalidated** (D-5).
 
+**O-5 · The boundary implication table needs legal review** (D-17). It encodes the
+ordinary reading of UNCLOS for a fishing vessel — a coastal state controls fishing in its
+own EEZ, foreign vessels need authorisation. It does **not** encode bilateral agreements,
+traditional fishing rights, the India–Sri Lanka arrangements, or any licence a particular
+vessel holds. It is surfaced in every answer as `LEGAL_REVIEW_REQUIRED`. The alternative
+— returning `UNKNOWN` for every foreign jurisdiction until a lawyer has signed off — is
+defensible but throws away the domain's most useful output.
+*Current behaviour: the reading is applied and its status is stated.*
+
 **O-4 · `NOAA_AVHRR_datasets` calibration.** Its latitude axis could be calibrated
 against `NOAA_AVHRR_AMSR_datasets` over their overlapping period (1981–2011), which
 would recover a current INCOIS SST source. The dataset was unloaded from the server
@@ -278,6 +306,9 @@ when attempted. Worth retrying.
 | INCOIS WMS verification from an unrestricted network | not done | PFZ |
 | CMEMS credentials | **not needed** for current use | — |
 | MOSDAC registration | not started | P1 enhancement only |
+| VLIZ / MarineRegions licence review | not started | nothing — CC-BY 4.0 attribution is carried; `14` §"terms" still wants a review |
+| Legal review of the boundary implication table | not started | nothing — the table is applied and labelled `LEGAL_REVIEW_REQUIRED` (O-5) |
+| A source for restricted / naval zones and MPAs | none identified | the one gap that could turn a `PERMITTED` into something else (§10.5) |
 
 IMD is the critical path. Everything else degrades explicitly.
 
@@ -285,17 +316,21 @@ IMD is the critical path. Everything else degrades explicitly.
 
 ## 8. Next Steps
 
-1. **MarineRegions → `REGULATORY` verdict.** No credentials. Point-in-polygon against
-   versioned EEZ geometry. Gives a second fully-evidenced domain and the only one that
-   needs no forecast.
+1. ~~**MarineRegions → `REGULATORY` verdict.**~~ **Done — see §10.**
 2. **Agents + LangGraph.** 25 % of remaining backend weight, no external dependencies,
    and the architectural differentiator. The CLI currently hardcodes the orchestration
-   a Planner is meant to decide. Needs an LLM provider configured.
-3. **Geospatial completion** — field masking, GeoJSON output, geofencing.
+   a Planner is meant to decide. Needs an LLM provider configured. **This is now the
+   critical path for everything that is not credential-blocked.**
+3. **Geospatial completion** — field masking, GeoJSON output, geofencing. The
+   containment kernel (`topology.py`) landed with §10; geofencing can reuse it directly.
 4. **IMD adapter** — build to spec now so it works the day credentials arrive; it
    already degrades correctly.
-5. **Documents 23–30** — diagrams, ADRs (fold in §4 above), gap register, judge Q&A,
-   traceability, glossary, quickstart, definition of done.
+5. **Documents 23–30** — diagrams, ADRs (fold in §4 and §10.3 above), gap register,
+   judge Q&A, traceability, glossary, quickstart, definition of done.
+6. **Boundary follow-ups** (small, from §10.2): widen the snapshot region east of 90 E
+   so Andaman and Nicobar positions can be answered; get the VLIZ licence review done
+   (`14` §"terms"); find a source for restricted/naval zones, which is the one gap that
+   could turn a `PERMITTED` into something else.
 
 ---
 
@@ -305,14 +340,161 @@ IMD is the critical path. Everything else degrades explicitly.
 python3 -m venv .venv
 ./.venv/bin/pip install pydantic httpx certifi truststore numcodecs numpy pyyaml pytest
 
-./.venv/bin/python -m pytest tests -q            # 63 offline tests
-./.venv/bin/python scripts/capture_datasets.py   # live INCOIS metadata capture
-./.venv/bin/python -m backend.orca.cli.query     # vertical slice, live
+./.venv/bin/python -m pytest tests -q                 # 122 offline tests
+./.venv/bin/python scripts/capture_datasets.py        # live INCOIS metadata capture
+./.venv/bin/python -m scripts.capture_boundaries      # live MarineRegions snapshot
+./.venv/bin/python -m backend.orca.cli.query          # vertical slice, live
 ./.venv/bin/python -m backend.orca.cli.query --when 2011-06-15T00:30:00
+./.venv/bin/python -m backend.orca.cli.query --lat 7.00 --lon 79.30 --label "west of Colombo"
 ```
 
-The second CLI invocation targets a date inside ERDDAP's archive coverage and shows the
+**Run `capture_boundaries` first.** `data/boundaries/` is git-ignored
+(`18_REPOSITORY_STRUCTURE.md` §6), so a fresh clone has no boundary geometry and
+`get_maritime_boundaries` returns `DATASET_UNAVAILABLE` naming the script — which is the
+correct degradation, not a bug. The capture takes about 35 s and writes 7.2 MB. Pin a
+snapshot with `ORCA_MARINEREGIONS_SNAPSHOT_VERSION` so a deployment cannot drift onto
+newer geometry unnoticed.
+
+The archive-date invocation targets a date inside ERDDAP's archive coverage and shows the
 pipeline producing a verdict from historical data — useful for demonstrating the
-reasoning path independently of current data availability.
+reasoning path independently of current data availability. The Colombo invocation shows
+`REGULATORY = RESTRICTED` overriding a safety refusal in the headline.
+
+---
+
+## 10. Session 2 — MarineRegions and the REGULATORY Domain
+
+This was §8 step 1. It is the only domain that needs no forecast, no credentials and no
+network at query time, which is why it was taken next.
+
+### 10.1 What was built
+
+| Piece | What it does |
+|---|---|
+| `geospatial/topology.py` | Even-odd ray casting with hole exclusion, antimeridian normalisation, geodesic distance to the nearest boundary edge, and a flat ring index with per-ring bbox prefiltering. 245 lines, no geometry dependency. |
+| `adapters/marineregions/` | WFS 2.0 client (capture only), snapshot writer and reader, and the boundary adapter. 932 lines. |
+| `tools/boundaries.py` | `get_maritime_boundaries` — the 7th P0 tool. |
+| `assessment/jurisdiction.py` | Home-vs-foreign placement and the configured implication table. |
+| `assessment/regulatory.py` | Containment → `PERMITTED` / `RESTRICTED` / `PROHIBITED` / `UNKNOWN`. |
+| `scripts/capture_boundaries.py` | Live capture → `data/boundaries/<version>/`. |
+| `config/boundaries.yaml` | Source, snapshot region, per-type sources, and the implication table with its validation status. |
+
+56 new tests (122 total, 0.25 s, all offline). Two recorded upstream fixtures — real
+national polygons, 48 kB — plus a capabilities excerpt.
+
+**Live behaviour, verified this session.** 60 km inside the Sri Lankan EEZ →
+`RESTRICTED`, high confidence, with the feature name, `v12 (2023)` and the distance to
+the edge. 2.3 km from the India–Sri Lanka boundary in Palk Bay → `PERMITTED` but
+confidence capped at medium and the proximity stated. Beyond every EEZ → `UNKNOWN`, not
+`PERMITTED`. East of 90 E → `INSUFFICIENT_COVERAGE`, refusing rather than answering.
+A boundary query costs 12–20 ms against 458,706 vertices.
+
+### 10.2 Findings
+
+Full detail in `03_DATA_SOURCE_MATRIX.md` §16. The four that changed the design:
+
+| ID | Finding |
+|---|---|
+| **F-13** | The layers declare `urn:ogc:def:crs:EPSG::4326`, so CQL `BBOX` is read **latitude first**. The first capture asked for the Indian Ocean and got Svalbard and the Russian Arctic — a plausible-looking, entirely wrong, non-empty result. |
+| **F-15** | `eez_12nm` and `eez_24nm` are **bands from the baseline, not nested discs**. 5 NM offshore is inside the territorial sea and outside the contiguous zone; 20 NM offshore is the reverse. Treating them as nested is wrong in both directions. |
+| **F-16** | `eez_internal_waters` publishes **nothing for Sri Lanka**. "Outside every internal-waters polygon" there is a gap in the source, not a fact about the point, and is downgraded to *not evaluated for this jurisdiction* (D-16). |
+| **F-17** | The service publishes **no version field** — only a release year inside the layer title. The capture parses it and **fails** rather than writing geometry that cannot be cited. |
+
+### 10.3 Design decisions
+
+#### D-13 · A versioned local snapshot, not a query-time WFS call
+**Context.** `04` §3.11 specifies a preloaded, versioned PostGIS snapshot. There is no
+PostGIS in this project yet.
+**Decision.** Capture to `data/boundaries/<version>/`: a manifest with provenance and
+per-feature attributes, plus one flattened `.npz` of full-precision geometry per layer.
+**Rationale.** Version binding is the point. A run that said "inside the Indian EEZ" in
+March must still be checkable in September against the geometry it actually used, and a
+live WFS call cannot promise that. It also means the REGULATORY domain keeps working
+when the network does not.
+**Consequences.** `data/boundaries/` is git-ignored, so a fresh clone must run the
+capture; the adapter says exactly that when the snapshot is absent. Loading is 2 ms.
+
+#### D-14 · Coverage is a declared region, and outside it the answer is refusal
+**Context.** A snapshot holds the features intersecting a bbox. Outside that bbox,
+"inside no boundary" is indistinguishable from "we did not look".
+**Decision.** The snapshot records its region. A query outside it returns
+`INSUFFICIENT_COVERAGE` and no containment result at all.
+**Rationale.** Same principle as D-3: *could not check* must never become *nothing
+found*. The failure this prevents is a vessel being told it is in international waters
+because the snapshot stopped at 90 E.
+
+#### D-15 · Boundary types are evaluated independently; the worst governs
+**Context.** F-15 — the zones are bands, not a hierarchy.
+**Decision.** Each type is tested separately and mapped through a configured implication
+(`home` / `foreign` / `none`); the most constraining outcome governs. Never averaged,
+never inferred from a neighbouring type.
+**Consequence.** Inside a foreign territorial sea is `PROHIBITED` even though the
+surrounding EEZ alone would be `RESTRICTED`.
+
+#### D-16 · A layer with no feature for this jurisdiction cannot say "outside"
+**Context.** F-16.
+**Decision.** After containment, the adapter checks whether the governing EEZ's
+sovereign appears at all in each other layer. If not, that type is flagged and the
+assessment lists it as `INSUFFICIENT_COVERAGE`, not as unconstrained.
+**Rationale.** The error is asymmetric: an unchecked internal-waters polygon can only
+make the answer more restrictive, never less. Reporting it as "outside" would understate
+a restriction, which is the direction that gets someone arrested.
+
+#### D-17 · The geometry is a fact; what it means is a legal judgement, and they live apart
+**Context.** "Inside another state's EEZ ⇒ needs authorisation" is not something an
+adapter should assert, and not something an engineer should encode as a constant.
+**Decision.** The adapter reports only what the source publishes — sovereign, territory,
+ISO code, distance. `config/boundaries.yaml` carries the implication table, marked
+`LEGAL_REVIEW_REQUIRED`, and `assessment/jurisdiction.py` reads it. The adapter and the
+assessment read different sections of the same file and do not import each other.
+**Consequence.** Every regulatory answer surfaces `LEGAL_REVIEW_REQUIRED`, exactly as
+threshold-based answers surface `SCIENTIFIC_VALIDATION_REQUIRED`.
+
+#### D-18 · An unevaluated boundary type is named in every answer
+**Context.** `04` §3.11 rule 2 — an EEZ polygon is not a fishing regulation zone.
+**Decision.** `boundary_types` defaults to every type ORCA has a policy for, including
+the four with no source (MPA, restricted zone, fishing regulation zone, seasonal
+closure). Each returns `DATASET_UNAVAILABLE` and appears under `not_evaluated`.
+**Rationale.** An answer that quietly omitted restricted zones would read as "you are
+clear". A `PERMITTED` verdict with unchecked restrictions is therefore capped at medium
+confidence — an unchecked naval exercise area can only make things worse.
+
+#### D-19 · A regulatory constraint outranks a safety refusal in the headline
+**Context.** `synthesise` answered a safety-input gap with `CANNOT_ADVISE` before
+looking at any other domain, which would have buried a `RESTRICTED` or `PROHIBITED`
+result — and today safety *always* refuses, for want of IMD credentials.
+**Decision.** Regulatory constraints are settled first, per `12` §8's priority order.
+The headline then adds that conditions could not be assessed, and the disposition stays
+`BLOCKED`.
+**Rationale.** A boundary holds whatever the weather does. Naming it is useful even when
+nothing else can be said.
+
+### 10.4 Deviations from the design documents
+
+| Document | Deviation | Reason |
+|---|---|---|
+| `04` §3.11 / `09` §4.2 — PostGIS snapshot | Flat `.npz` arrays + JSON manifest | D-13; no PostGIS in the project yet. The interface is unchanged and the store is swappable |
+| `06` §476 — `REGULATORY PERMITTED confidence high` | `PERMITTED` is capped at **medium** while restriction-bearing types are unevaluated | D-18 |
+| `12` §11 — category table | No category is defined for `REGULATORY RESTRICTED`; mapped to `PROCEED_WITH_CAUTION` | Needing another state's authorisation is neither a prohibition nor "proceed with context" |
+| `04` §3.11 — `international_boundary` as a boundary type | Not configured. `eez_boundaries` is a **line** layer; containment is undefined for it | Distance to the nearest EEZ edge already answers "how far am I from the line", and is reported |
+
+### 10.5 What this domain still cannot do
+
+* **No restricted or naval zones, no MPAs, no fishing regulation zones, no seasonal
+  closures.** These are the restrictions most likely to bite, and none has a configured
+  source. Every answer says so.
+* **The monsoon fishing ban is not a polygon.** It is a dated legal instrument issued per
+  state, and no boundary dataset can express it.
+* **Bilateral arrangements are not encoded** — including the India–Sri Lanka
+  arrangements, which is exactly the water where the geometry is most useful.
+* **No vessel context.** A licence, a registration or a permitted gear type would change
+  the answer, and ORCA holds none of it.
+* **No land mask.** "Outside every EEZ" is equally true of the high seas and of a street
+  in Kochi. The domain says so in the evidence statement rather than picking one — but a
+  coarse land mask (`18` §6 already reserves `data/landmask/`) would let it distinguish
+  them, and that is worth doing.
+* **East of 90 E is uncovered** by the default snapshot (F-18).
+
+---
 
 **ORCA output is not an official advisory. Follow IMD and INCOIS bulletins.**

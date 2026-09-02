@@ -521,3 +521,56 @@ window.
 The remaining blocker for a SAFETY verdict is **`official_warning_status`**, which has no
 substitute by design — an official warning cannot be synthesised from model fields.
 
+
+---
+
+## 16. Live Verification — MarineRegions (S-08), 2026-09-02
+
+### 16.1 Access
+
+`https://geo.vliz.be/geoserver/MarineRegions/wfs` answered **unauthenticated**:
+`GetCapabilities` HTTP 200 (164 kB, 100+ layers advertised), `DescribeFeatureType`
+HTTP 200, `GetFeature` with `outputFormat=application/json` HTTP 200. §5 recorded S-08
+as CONFIRMED reachable; that is now verified all the way to feature geometry. No
+credentials are configured or required.
+
+Licence: VLIZ Maritime Boundaries Geodatabase, CC-BY 4.0. Attribution is mandatory and
+is carried on every provenance record. `14_SECURITY_PRIVACY_AND_GOVERNANCE.md` §"terms"
+still calls for a licence review; the attribution string is in place meanwhile.
+
+### 16.2 Layers bound (ids and versions read from the service, not guessed)
+
+| Boundary type | Layer | Version published in the layer title |
+|---|---|---|
+| EEZ | `MarineRegions:eez` | Exclusive Economic Zones (200 NM) **(v12, world, 2023)** |
+| territorial_sea | `MarineRegions:eez_12nm` | Territorial Seas (12 NM) **(v4, world, 2023)** |
+| contiguous_zone | `MarineRegions:eez_24nm` | Contiguous Zones (24 NM) **(v4, world, 2023)** |
+| internal_waters | `MarineRegions:eez_internal_waters` | Internal Waters **(v4, world, 2023)** |
+
+**No boundary type outside this list has a configured source.** Marine protected areas,
+restricted and naval zones, fishing regulation zones and seasonal closures return
+`DATASET_UNAVAILABLE` and are listed as not evaluated in every answer.
+
+The captured snapshot (region lat 0–26 N, lon 64–90 E) holds 8 EEZ, 5 territorial-sea,
+5 contiguous-zone and 3 internal-waters features — 458,706 vertices, 7.2 MB — read in
+11.9 MB over 5 requests.
+
+### 16.3 Findings
+
+| ID | Finding | Consequence |
+|---|---|---|
+| **F-13** | The layers declare `urn:ogc:def:crs:EPSG::4326`, whose authority axis order is **latitude, longitude**. `BBOX(the_geom,60,-2,100,26)` is read as lat 60–100, lon -2–26 and returns Norway, Svalbard and the Russian Arctic. | Every bbox is emitted lat, lon, lat, lon. The first capture attempt silently returned the wrong hemisphere; the failure mode is a plausible-looking non-empty result, which is the dangerous kind. |
+| **F-14** | Features crossing the antimeridian (Kiribati, Hawaii) have envelopes spanning −180…180, so they match *any* bbox query. | Bounding-box prefiltering is done per **ring**, not per feature, and rings that cross the antimeridian are normalised into a continuous 0–360 frame at capture time. Both features are returned by an Indian Ocean bbox and correctly contain nothing. |
+| **F-15** | `eez_12nm` and `eez_24nm` are **bands measured from the baseline, not nested discs**. A point 5 NM offshore is inside the territorial sea and *outside* the contiguous zone; a point 20 NM offshore is the reverse. | Boundary types are evaluated independently and combined by "most constraining governs". Treating them as nested would produce a wrong answer in both directions. |
+| **F-16** | `eez_internal_waters` publishes **no feature for Sri Lanka or the Maldives**. A point in Sri Lankan waters therefore falls outside every internal-waters polygon in the snapshot. | That is a gap in the source, not a finding about the point. The adapter detects that the layer holds nothing for the governing jurisdiction and downgrades the result to *not evaluated for this jurisdiction*, so a missing polygon can never read as "not in internal waters". |
+| **F-17** | The service publishes **no version field**. The release is stated only in the layer title, e.g. *"(v12, world, 2023)"*, and only to year precision. | The title is parsed and recorded; `capture_boundaries.py` **fails** rather than writing a snapshot it cannot version. Effective dates are recorded to year precision, and provenance says so. |
+| **F-18** | The full-precision Indonesian EEZ alone is 1.7 M vertices (81 % of an Indian Ocean bbox query). | The default snapshot region stops at 90 E, which excludes it. Positions east of 90 E — including the Andaman and Nicobar waters — are outside the snapshot and return `INSUFFICIENT_COVERAGE` until the capture is re-run with a wider region. |
+
+### 16.4 Consequence for `22_MVP_SCOPE.md`
+
+M-10 ("≥ 3 distinct external sources reached live in one run") is **met**: INCOIS ERDDAP,
+CMEMS and MarineRegions all serve a single run. M-25 ("point-in-polygon boundary
+evaluation with dataset version and `advisory_only`") is **met**.
+
+REGULATORY is the second fully evidenced domain and the only one that needs no forecast,
+no credentials and no network at query time.
