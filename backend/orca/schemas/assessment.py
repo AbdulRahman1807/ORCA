@@ -139,6 +139,8 @@ class Recommendation(BaseModel):
     disposition: Disposition = Disposition.AUTO_RELEASE
     human_review: dict[str, Any] | None = None
     is_official_advisory: bool = False
+    alerts: list[dict[str, Any]] = Field(default_factory=list)
+    map_layers: list[dict[str, Any]] = Field(default_factory=list)
     disclaimer_id: str = "disc.not_official_advisory"
     generated_at: datetime = Field(default_factory=utcnow)
 

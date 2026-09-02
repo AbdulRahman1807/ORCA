@@ -117,3 +117,36 @@ class TestNoProviderKnowledge:
         blob = plan.model_dump_json()
         for leak in ("http", "erddap", "cmems", "zarr", "s3.", "api_key"):
             assert leak not in blob.lower(), f"planner leaked {leak!r}"
+
+
+class TestRouteIntent:
+    """Ordering bug: the problem statement's own route query classified as
+    fishing, because '\\bfish' matched before the route pattern."""
+
+    def test_the_problem_statements_route_query_is_a_route(self):
+        q = ("What is the safest route for a fishing vessel considering "
+             "weather and sea-state conditions?")
+        assert PlannerAgent().classify(q) == "route_optimization"
+
+    @pytest.mark.parametrize("q,expected", [
+        ("safest route from kochi to mumbai", "route_optimization"),
+        ("sail to Chennai", "route_optimization"),
+        ("is it safe to venture out tomorrow?", "safety_check"),
+        ("is it good for fishing near kochi?", "fishing_suitability"),
+        ("is there a warning in force?", "warning_lookup"),
+    ])
+    def test_specificity_ordering_holds(self, q, expected):
+        assert PlannerAgent().classify(q) == expected
+
+    def test_a_route_without_a_destination_asks_rather_than_assessing(self, registry):
+        """Silently assessing the origin would answer a question nobody asked."""
+        plan = plan_for(registry, "plan a route", location=LOC)
+        assert plan.clarification_needed in ("destination", "location")
+        assert plan.steps == []
+
+    def test_a_route_does_not_demand_a_time_window(self, registry):
+        """'Plan a route to Chennai' means now."""
+        loc = {**LOC, "dest_lat": 13.08, "dest_lon": 80.29}
+        plan = plan_for(registry, "route from kochi to chennai",
+                        location=loc, window=None)
+        assert plan.clarification_needed is None

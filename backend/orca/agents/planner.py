@@ -35,7 +35,7 @@ UNKNOWN_INTENT = "unknown"
 INTENTS = (
     "fishing_suitability", "safety_check", "warning_lookup", "cyclone_status",
     "ocean_condition", "boundary_check", "explanation", "data_lookup",
-    "smalltalk_or_out_of_scope",
+    "route_optimization", "smalltalk_or_out_of_scope",
 )
 
 #: intent -> domains the answer requires. A deterministic table.
@@ -47,6 +47,7 @@ DOMAIN_MAP: dict[str, tuple[Domain, ...]] = {
     "cyclone_status": (Domain.SAFETY,),
     "ocean_condition": (Domain.FISHING_SUITABILITY,),
     "boundary_check": (Domain.REGULATORY,),
+    "route_optimization": (Domain.SAFETY, Domain.REGULATORY),
     "explanation": (),
     "data_lookup": (),
     "smalltalk_or_out_of_scope": (),
@@ -59,10 +60,15 @@ CONTEXT_EVIDENCE: dict[str, tuple[str, ...]] = {
     "ocean_condition": ("sst", "chlorophyll_a", "temperature", "salinity",
                         "current_speed"),
     "data_lookup": ("sst", "chlorophyll_a", "temperature", "salinity"),
+    "route_optimization": ("significant_wave_height", "wind_speed", "maritime_boundaries"),
 }
 
 #: Intents that answer a question about a specific time, so an unresolved time
 #: window is a reason to ask rather than to guess.
+#: Intents that answer a question about a specific time, so an unresolved time
+#: window is a reason to ask rather than to guess. A ROUTE is deliberately not
+#: here: "plan a route to Chennai" means now, and demanding a time before
+#: drawing one is pedantry, not rigour.
 TIME_SENSITIVE = frozenset({"fishing_suitability", "safety_check", "warning_lookup",
                             "cyclone_status", "ocean_condition"})
 
@@ -73,6 +79,7 @@ NARROW_INTENT_EVIDENCE: dict[str, tuple[str, ...]] = {
     "warning_lookup": ("official_warning_status",),
     "cyclone_status": ("cyclone_distance_km", "official_warning_status"),
     "boundary_check": ("maritime_boundaries",),
+    "route_optimization": ("significant_wave_height", "wind_speed", "maritime_boundaries"),
 }
 
 #: REGULATORY has no threshold set in `DOMAIN_THRESHOLD_SET` -- its rules are
@@ -80,12 +87,18 @@ NARROW_INTENT_EVIDENCE: dict[str, tuple[str, ...]] = {
 REGULATORY_EVIDENCE = ("maritime_boundaries",)
 
 _KEYWORDS: tuple[tuple[str, str], ...] = (
+    # Ordered most-specific first: FIRST MATCH WINS. "route" beats "fish" and
+    # "safe" because the problem statement's own example query -- "the safest
+    # route for a fishing vessel" -- contains all three and is asking for a
+    # route. Before this ordering it classified as fishing_suitability.
+    (r"\broute\b|\bpath\b|\bnavigat|\bwaypoint\b|\bsail to\b|\bvoyage\b",
+     "route_optimization"),
     (r"\bwarn(ing|ings)?\b|\bbulletin\b|\balert\b", "warning_lookup"),
     (r"\bcyclone\b|\bstorm\b|\bdepression\b", "cyclone_status"),
     (r"\beez\b|\bboundar|\bterritorial\b|\bmaritime border\b|\blegal\b|\bpermitted\b",
      "boundary_check"),
     (r"\bfish|\bcatch\b|\bpfz\b|\bshoal\b", "fishing_suitability"),
-    (r"\bsafe\b|\bsafety\b|\bgo out\b|\bventure\b|\bsea state\b", "safety_check"),
+    (r"\bsafe\w*\b|\bgo out\b|\bventure\b|\bsea state\b", "safety_check"),
     (r"\bsst\b|\btemperature\b|\bchloroph|\bcurrent|\bwave|\bsalinity\b",
      "ocean_condition"),
     (r"\bwhy\b|\bexplain\b|\bhow does\b", "explanation"),
@@ -148,6 +161,12 @@ class PlannerAgent(Agent):
         if location is None:
             return self._clarify(intent, version, "location",
                                  "The position is not resolved.")
+        if intent == "route_optimization" and location.get("dest_lat") is None:
+            # Silently assessing the origin instead would answer a question
+            # nobody asked. Ask for the destination.
+            return self._clarify(intent, version, "destination",
+                                 "A route was requested but no destination "
+                                 "was resolved.")
         if window is None and intent in TIME_SENSITIVE:
             return self._clarify(intent, version, "time_window",
                                  "The time window is not resolved.")
@@ -264,11 +283,21 @@ class PlannerAgent(Agent):
     def _planner_id(self) -> str:
         return f"llm:{self.llm.model}" if self.use_llm() else "deterministic"
 
-    def classify(self, query_text: str) -> str:
-        """Intent classification: model when configured, keywords otherwise."""
+    def classify(self, query_text: str, language: str = "en") -> str:
+        """Intent classification: model when configured, keywords otherwise.
+
+        Keywords are per-language. A query in Malayalam classifies from the
+        Malayalam lexicon; the English patterns are still tried afterwards
+        because people mix scripts and transliterate.
+        """
         llm_intent = self._llm_classify(query_text)
         if llm_intent is not None:
             return llm_intent
+        if language and language != "en":
+            from ..i18n.generate import native_intent
+            native = native_intent(language, query_text or "")
+            if native in INTENTS:
+                return native
         text = (query_text or "").lower()
         if not text.strip():
             return "smalltalk_or_out_of_scope"

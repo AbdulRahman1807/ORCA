@@ -53,7 +53,7 @@ class ReportingAgent(Agent):
         values = [e.value for e in evidence if e.value is not None]
 
         narrative, claims, source = self._compose(
-            assessments, evidence, s, values, safety_assessed)
+            assessments, evidence, s, values, safety_assessed, language)
 
         rec = Recommendation(
             recommendation_id=f"rc-{uuid.uuid4().hex[:10]}",
@@ -71,7 +71,7 @@ class ReportingAgent(Agent):
         return AgentResult(agent=self.name, value=rec,
                            reasoning_summary=rec.reasoning_summary)
 
-    def _compose(self, assessments, evidence, s, values, safety_assessed):
+    def _compose(self, assessments, evidence, s, values, safety_assessed, language):
         """Model narrative if it validates; deterministic template otherwise."""
         for _ in range(MAX_REGENERATIONS + 1):
             text = self._generate(assessments, evidence, s)
@@ -82,7 +82,7 @@ class ReportingAgent(Agent):
             if not issues:
                 return text, self._claims(text, assessments, evidence), \
                     f"llm:{self.llm.model}"
-        return (self._template(assessments, evidence, s),
+        return (self._template(language, assessments, evidence, s),
                 self._claims(None, assessments, evidence),
                 "deterministic template")
 
@@ -106,35 +106,12 @@ class ReportingAgent(Agent):
             user="\n".join(lines), max_tokens=600))
         return response.text.strip() if response and response.text.strip() else None
 
-    def _template(self, assessments, evidence, s) -> str:
+    def _template(self, language, assessments, evidence, s) -> str:
         """Grounded by construction: every sentence is built from an assessment.
-
-        Less fluent than a generated narrative, and always correct. This is the
-        answer ORCA gives when no model is configured.
+        Translated safely via i18n without modifying numeric data or geometries.
         """
-        out = [s.headline]
-        for a in assessments:
-            limiting = next((d for d in a.drivers if d.contribution == "limiting"),
-                            None)
-            bit = f"{a.domain.value}: {a.verdict.value} (confidence {a.confidence.value})"
-            if limiting is not None:
-                val = ("inside" if limiting.value is True else "outside"
-                       if limiting.value is False else
-                       f"{limiting.value:g} {limiting.unit or ''}".strip())
-                bit += f"; limiting factor {limiting.factor} at {val}"
-            if a.missing_required:
-                bit += (f"; no verdict issued for want of "
-                        f"{', '.join(a.missing_required)}")
-            if a.verdict_capped_by:
-                bit += (f"; capped at this level because "
-                        f"{', '.join(a.verdict_capped_by)} could not be checked")
-            out.append(bit + ".")
-            if a.not_evaluated:
-                out.append("  Not checked: " + ", ".join(
-                    f"{n.factor} ({n.reason})" for n in a.not_evaluated) + ".")
-        out.append("This is an ORCA assessment, not an official advisory. "
-                   "Follow IMD and INCOIS bulletins.")
-        return "\n".join(out)
+        from ..i18n.generate import generate_template
+        return generate_template(language, assessments, s)
 
     def _claims(self, text, assessments, evidence) -> list[Claim]:
         """One claim per domain, each bound to that domain's evidence.
