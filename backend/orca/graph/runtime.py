@@ -1,0 +1,46 @@
+"""Runtime context passed through LangGraph config, not through state.
+
+The tool registry, the LLM provider and the run budget are live objects: they
+are not serialisable into a checkpoint and must not be. They travel in
+`config["configurable"]["orca"]`, which keeps graph state to plain data that can
+be checkpointed and replayed for audit (07 section 10).
+
+This is also what preserves the layering rule: the registry arrives already
+bound by the composition root, so nothing in `graph/` or `agents/` imports
+`adapters/`.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from ..agents.base import Budget
+from ..llm.provider import LLMProvider, UnavailableProvider
+from ..llm.usage import UsageLedger
+from ..tools.registry import ToolRegistry
+
+MAX_REPLANS = 2
+MAX_CONCURRENT_TOOLS = 6
+
+
+@dataclass
+class OrcaRuntime:
+    registry: ToolRegistry = field(default_factory=ToolRegistry)
+    llm: LLMProvider = field(default_factory=UnavailableProvider)
+    ledger: UsageLedger = field(default_factory=UsageLedger)
+    budget: Budget = field(default_factory=Budget)
+    max_replans: int = MAX_REPLANS
+    #: Analysis window length when the query implies a period rather than an instant.
+    window_hours: int = 4
+
+    def configurable(self) -> dict[str, Any]:
+        return {"orca": self}
+
+
+def runtime_from(config: dict | None) -> OrcaRuntime:
+    """Read the runtime out of a LangGraph config, with a safe default."""
+    if not config:
+        return OrcaRuntime()
+    configurable = config.get("configurable") or {}
+    rt = configurable.get("orca")
+    return rt if isinstance(rt, OrcaRuntime) else OrcaRuntime()

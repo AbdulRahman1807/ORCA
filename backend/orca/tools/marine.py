@@ -57,3 +57,28 @@ def get_currents(lat: float, lon: float, valid_time: datetime, *,
     finally:
         if own:
             adapter.close()
+
+
+def get_weather(lat: float, lon: float, valid_time: datetime, *,
+                adapter: CmemsAdapter | None = None) -> OrcaEnvelope:
+    """P0. Near-surface wind, as components.
+
+    CMEMS publishes no scalar wind speed (F-11), so this returns the eastward
+    and northward components and the geospatial kernel derives speed and
+    direction with a recorded method.
+
+    This is an OBSERVATION product with no forecast horizon: a query for
+    tomorrow correctly yields INSUFFICIENT_COVERAGE rather than an invented
+    value. A wind FORECAST still requires IMD or another NWP source.
+    """
+    own = adapter is None
+    adapter = adapter or CmemsAdapter()
+    try:
+        return collect_point_parameters(
+            "get_weather", ("eastward_wind", "northward_wind"), lat, lon,
+            valid_time,
+            lambda sid, p: adapter.fetch_point(p, lat, lon, valid_time),
+            SOURCE_ID)
+    finally:
+        if own:
+            adapter.close()

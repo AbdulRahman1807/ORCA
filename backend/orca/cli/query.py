@@ -16,12 +16,12 @@ from ..adapters.incois_erddap.adapter import IncoisErddapAdapter
 from ..adapters.marineregions.adapter import MarineRegionsAdapter
 from ..assessment.engine import EvidencePool, assess_domain
 from ..assessment.regulatory import assess_regulatory
-from ..geospatial.derive import derive_from_envelope, derive_ratio_to_local_median
+from ..geospatial.derive import derive_from_envelope
 from ..assessment.synthesis import synthesise
 from ..schemas.core import SpatialRef
 from ..schemas.enums import Domain, Verdict
 from ..tools.boundaries import get_maritime_boundaries
-from ..tools.marine import get_currents, get_wave_conditions
+from ..tools.marine import get_currents, get_wave_conditions, get_weather
 from ..tools.ocean import get_chlorophyll, get_ocean_observations, get_sst
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -36,44 +36,6 @@ UNBUILT = {
     "cyclone_distance_km": ("get_cyclone_track", "IMD credentials not granted"),
     "pfz_advisory": ("get_pfz", "INCOIS WMS pending network-independent verification"),
 }
-
-
-def get_wind(lat: float, lon: float, when: datetime, adapter):
-    """Wind via CMEMS L4 observations.
-
-    This is an OBSERVATION product with no forecast horizon, so a future query
-    correctly yields INSUFFICIENT_COVERAGE rather than an invented value.
-    """
-    from ..adapters.cmems.client import SOURCE_ID
-    from ..tools.base import collect_point_parameters
-    return collect_point_parameters(
-        "get_weather", ("eastward_wind", "northward_wind"), lat, lon, when,
-        lambda sid, p: adapter.fetch_point(p, lat, lon, when), SOURCE_ID)
-
-
-def _local_ratio(env, cmems, lat: float, lon: float, when: datetime):
-    """Express chlorophyll comparatively, against the median of the same field.
-
-    ORCA does not have a validated absolute chlorophyll standard, so the
-    assessment factor is a ratio to the local median rather than a raw value.
-    """
-    from ..adapters.cmems.adapter import CmemsError
-    obs = next((d for d in env.data if d.parameter == "chlorophyll_a"), None)
-    if obs is None:
-        return None, ""
-    prov = next((p for p in env.provenance if p.provenance_id == obs.provenance_id),
-                None)
-    if prov is None or prov.source_id != "S-07":
-        return None, ""          # the local field must come from the same source
-    try:
-        vals, _, _, n = cmems.fetch_local_field("chlorophyll_a", lat, lon, when, 100.0)
-        result, rprov = derive_ratio_to_local_median(obs, prov, vals, 100.0, n)
-    except (CmemsError, ValueError):
-        return None, ""
-    return (result, rprov), (
-        f"chlorophyll_ratio_to_local_median = {result.value} "
-        f"(median {result.detail['local_median']:g} mg m-3 over "
-        f"{n} valid cells within 100 km)")
 
 
 def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
@@ -103,7 +65,7 @@ def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
             ("get_wave_conditions", lambda: get_wave_conditions(lat, lon, when,
                                                                 adapter=cmems)),
             ("get_currents", lambda: get_currents(lat, lon, when, adapter=cmems)),
-            ("get_weather", lambda: get_wind(lat, lon, when, cmems)),
+            ("get_weather", lambda: get_weather(lat, lon, when, adapter=cmems)),
             ("get_ocean_observations", lambda: get_ocean_observations(lat, lon, when,
                                                                       adapter=erddap)),
             ("get_sst", lambda: get_sst(lat, lon, when, adapter=erddap, cmems=cmems)),
@@ -120,12 +82,17 @@ def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
                 derived_note.append(
                     f"{', '.join(x.parameter for x in d_data)} derived from "
                     f"{name} components")
-            if name == "get_chlorophyll":
-                d, note = _local_ratio(env, cmems, lat, lon, when)
-                if d:
-                    env.data.extend([d[0]])
-                    env.provenance.extend([d[1]])
-                    derived_note.append(note)
+            # The ratio arrives already derived from the tool (kernel-computed,
+            # with a full derivation record); report it alongside the others.
+            for obs in env.data:
+                if getattr(obs, "parameter", None) != "chlorophyll_ratio_to_local_median":
+                    continue
+                det = obs.detail or {}
+                derived_note.append(
+                    f"chlorophyll_ratio_to_local_median = {obs.value} "
+                    f"(median {det.get('local_median', float('nan')):g} mg m-3 over "
+                    f"{det.get('valid_cells')} valid cells within "
+                    f"{det.get('radius_km', 0):g} km)")
             pool.ingest(env)
             src = env.source_resolution.actual_source or "-"
             fb = " fallback" if env.source_resolution.fallback_used else ""
