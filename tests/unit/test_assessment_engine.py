@@ -233,17 +233,68 @@ class TestOfficialWarningGoverns:
         assert a.limiting_factor == "official_warning_status"
         assert a.official_warning_status["active"] is True
 
+    def _unchecked_warning_pool(self):
+        """Benign model values, and a warning check that could not be made."""
+        from backend.orca.schemas.errors import ErrorCode
+        failed = OrcaEnvelope.failure("get_marine_warnings", ErrorCode.AUTH_REQUIRED,
+                                      "IMD credentials not granted",
+                                      subject="official_warning_status")
+        return pool_with(
+            make_env("get_wave_conditions", {"significant_wave_height": (0.4, "m")}),
+            make_env("get_weather", {"wind_speed": (2.0, "m s-1")}),
+            failed,
+        )
+
     def test_unchecked_warnings_do_not_become_no_warning(self):
-        """H-04: 'we could not check' must never read as 'nothing in force'."""
+        """H-04: 'we could not check' must never read as 'nothing in force'.
+
+        Under O-1 the verdict is now issued and CAPPED rather than refused, so
+        the guarantee this test defends is no longer "refuses" -- it is that an
+        unchecked authority never becomes evidence of its own absence. Nothing
+        may claim the warning was checked.
+        """
+        a = safety(self._unchecked_warning_pool())
+        assert "official_warning_status" in {n.factor for n in a.not_evaluated}
+        assert "official_warning_status" not in {d.factor for d in a.drivers}
+        assert a.official_warning_status is None
+
+    def test_an_unchecked_warning_caps_the_verdict_at_marginal(self):
+        """O-1: benign fields alone may never produce FAVOURABLE."""
+        a = safety(self._unchecked_warning_pool())
+        assert a.verdict is Verdict.MARGINAL
+        assert a.verdict_capped_by == ["official_warning_status"]
+        assert a.limiting_factor == "official_warning_status"
+        assert "capped" in a.rationale.lower()
+
+    def test_the_cap_is_a_ceiling_not_a_floor(self):
+        """A worse-than-cap verdict is untouched by the cap."""
+        from backend.orca.schemas.errors import ErrorCode
+        failed = OrcaEnvelope.failure("get_marine_warnings", ErrorCode.AUTH_REQUIRED,
+                                      "IMD credentials not granted",
+                                      subject="official_warning_status")
+        pool = pool_with(
+            make_env("get_wave_conditions", {"significant_wave_height": (4.2, "m")}),
+            make_env("get_weather", {"wind_speed": (2.0, "m s-1")}),
+            failed,
+        )
+        a = safety(pool)
+        assert a.verdict is Verdict.UNSAFE
+        assert a.verdict_capped_by == ["official_warning_status"]
+
+    def test_a_missing_measurement_still_refuses(self):
+        """Capping applies to the authority check only, never to a measurement."""
         from backend.orca.schemas.errors import ErrorCode
         failed = OrcaEnvelope.failure("get_marine_warnings", ErrorCode.AUTH_REQUIRED,
                                       "IMD credentials not granted",
                                       subject="official_warning_status")
         pool = pool_with(
             make_env("get_wave_conditions", {"significant_wave_height": (0.4, "m")}),
-            make_env("get_weather", {"wind_speed": (2.0, "m s-1")}),
             failed,
         )
-        a = safety(pool)
+        a = safety(pool)          # no wind at all
         assert a.verdict is Verdict.INSUFFICIENT_EVIDENCE
-        assert "official_warning_status" in {n.factor for n in a.not_evaluated}
+        assert "wind_speed" in a.missing_required
+
+    def test_confidence_is_never_high_on_a_capped_verdict(self):
+        a = safety(self._unchecked_warning_pool())
+        assert a.confidence is not Confidence.HIGH

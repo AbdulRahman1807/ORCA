@@ -41,8 +41,14 @@ class ReportingAgent(Agent):
     def _report(self, assessments, evidence, run_id, query_text, language,
                 resolved_context, not_evaluated):
         s: Synthesis = synthesise(assessments, evidence)
+        # A CAPPED safety verdict does not count as "safety was assessed": the
+        # authority that could have overridden it was never checked, so the
+        # absence-of-evidence guard must stay armed and reject any claim of
+        # safety in the narrative (O-1).
         safety_assessed = any(
-            a.domain is Domain.SAFETY and a.verdict is not Verdict.INSUFFICIENT_EVIDENCE
+            a.domain is Domain.SAFETY
+            and a.verdict is not Verdict.INSUFFICIENT_EVIDENCE
+            and not a.verdict_capped_by
             for a in assessments)
         values = [e.value for e in evidence if e.value is not None]
 
@@ -119,6 +125,9 @@ class ReportingAgent(Agent):
             if a.missing_required:
                 bit += (f"; no verdict issued for want of "
                         f"{', '.join(a.missing_required)}")
+            if a.verdict_capped_by:
+                bit += (f"; capped at this level because "
+                        f"{', '.join(a.verdict_capped_by)} could not be checked")
             out.append(bit + ".")
             if a.not_evaluated:
                 out.append("  Not checked: " + ", ".join(

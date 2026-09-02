@@ -80,6 +80,11 @@ class Assessment(BaseModel):
     drivers: list[Driver] = Field(default_factory=list)
     not_evaluated: list[NotEvaluated] = Field(default_factory=list)
     missing_required: list[str] = Field(default_factory=list)
+    #: Required factors whose absence CAPPED this verdict rather than blocking
+    #: it. A non-empty list means ORCA could not check something that would have
+    #: been allowed to override its own thresholds, so the verdict is a ceiling,
+    #: not a measurement (O-1).
+    verdict_capped_by: list[str] = Field(default_factory=list)
     limiting_factor: str | None = None
     official_warning_status: dict[str, Any] | None = None
     uncertainty: Uncertainty | None = None

@@ -35,7 +35,7 @@ def _when(value: Any) -> datetime:
     return datetime.fromisoformat(str(value))
 
 
-def build_live_registry(*, erddap, cmems, boundaries) -> ToolRegistry:
+def build_live_registry(*, erddap, cmems, boundaries, gfs=None) -> ToolRegistry:
     """Bind already-constructed adapters into a registry.
 
     Adapters are passed in rather than created here so their lifetime stays with
@@ -52,7 +52,7 @@ def build_live_registry(*, erddap, cmems, boundaries) -> ToolRegistry:
                get_currents(lat, lon, _when(valid_time), adapter=cmems))
     r.bind("get_weather",
            lambda lat, lon, valid_time, **_:
-               get_weather(lat, lon, _when(valid_time), adapter=cmems))
+               get_weather(lat, lon, _when(valid_time), adapter=cmems, gfs=gfs))
     r.bind("get_ocean_observations",
            lambda lat, lon, valid_time, **_:
                get_ocean_observations(lat, lon, _when(valid_time), adapter=erddap))

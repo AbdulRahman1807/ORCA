@@ -21,6 +21,7 @@ from zoneinfo import ZoneInfo
 from ..adapters.cmems.adapter import CmemsAdapter
 from ..adapters.incois_erddap.adapter import IncoisErddapAdapter
 from ..adapters.marineregions.adapter import MarineRegionsAdapter
+from ..adapters.noaa_gfs.adapter import NoaaGfsAdapter
 from ..graph.build import build_graph
 from ..graph.runtime import OrcaRuntime
 from ..llm.provider import resolve_provider
@@ -68,9 +69,9 @@ def run(query: str, *, lat: float | None, lon: float | None,
             "end_time": (when + timedelta(hours=4)).isoformat()}
 
     with IncoisErddapAdapter() as erddap, CmemsAdapter() as cmems, \
-            MarineRegionsAdapter() as boundaries:
+            MarineRegionsAdapter() as boundaries, NoaaGfsAdapter() as gfs:
         registry = build_live_registry(erddap=erddap, cmems=cmems,
-                                       boundaries=boundaries)
+                                       boundaries=boundaries, gfs=gfs)
         rt = OrcaRuntime(registry=registry, llm=llm)
         graph = build_graph()
         final = graph.invoke(state, config={"configurable": rt.configurable()})

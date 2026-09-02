@@ -16,9 +16,11 @@ Implementation is at **Phase 1–6 partial — ~70% of backend logic**.
 | Canonical schema (`schemas/`) | ✅ provenance invariant, error taxonomy, assessment types |
 | INCOIS ERDDAP adapter (`adapters/incois_erddap/`) | ✅ live, verified |
 | CMEMS adapter (`adapters/cmems/`) | ✅ live — waves, currents, wind, SST, chlorophyll |
+| NOAA GFS adapter (`adapters/noaa_gfs/`) | ✅ live — the wind **forecast** source (S-11) |
 | MarineRegions adapter (`adapters/marineregions/`) | ✅ live — versioned EEZ / 12 NM / 24 NM / internal-waters snapshot |
 | Cross-source fallback | ✅ time-aware source selection, recorded in provenance |
 | Capability tools (`tools/`) | ✅ 7 of 11 P0 |
+| Sources reached live in one run | ✅ 4 — INCOIS, CMEMS, MarineRegions, NOAA |
 | Geospatial kernel (`geospatial/`) | ◐ geodesy, temporal alignment, derivations, point-in-polygon |
 | Assessment engine (`assessment/`) | ✅ thresholds, sufficiency, verdicts, confidence, synthesis, REGULATORY |
 | LLM provider (`llm/`) | ✅ provider-agnostic; **ORCA runs with no model configured** |

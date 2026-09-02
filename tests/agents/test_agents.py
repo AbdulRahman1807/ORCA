@@ -182,3 +182,29 @@ class TestNoModelConfigured:
         rec = agent.report(assessments=[_assessment()], evidence=_evidence()).value
         assert rec.narrative
         assert "deterministic template" in rec.reasoning_summary
+
+
+class TestCappedVerdictKeepsTheAbsenceGuardArmed:
+    """O-1: a capped verdict is a ceiling, not a clean bill of health."""
+
+    def _capped(self):
+        return Assessment(
+            assessment_id="as-2", domain=Domain.SAFETY, verdict=Verdict.MARGINAL,
+            confidence=Confidence.MEDIUM,
+            verdict_capped_by=["official_warning_status"],
+            drivers=[Driver(factor="significant_wave_height", value=0.4, unit="m",
+                            band="favourable", contribution="supporting")],
+            rationale="MARGINAL for SAFETY, capped.")
+
+    def test_narrative_may_not_claim_safety_when_the_verdict_was_capped(self):
+        agent = ReportingAgent(llm=FakeProvider(text="It is safe to go out today."))
+        rec = agent.report(assessments=[self._capped()],
+                           evidence=_evidence()).value
+        assert "safe to go out" not in rec.narrative
+        assert "deterministic template" in rec.reasoning_summary
+
+    def test_the_template_states_why_the_verdict_is_a_ceiling(self):
+        rec = ReportingAgent().report(assessments=[self._capped()],
+                                      evidence=_evidence()).value
+        assert "capped" in rec.narrative
+        assert "official_warning_status" in rec.narrative

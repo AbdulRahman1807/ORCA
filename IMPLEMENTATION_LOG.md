@@ -309,12 +309,11 @@ adapter suite test a fiction.
 
 ## 6. Open Decisions Needing Input
 
-**O-1 · `official_warning_status` is a required safety input, so no safety verdict is
-possible without IMD credentials.** This follows `12` §4.1 and is the most defensible
-position — a warning cannot be synthesised from model fields. But it means the demo
-cannot show a safety verdict at all until credentials arrive. The alternative is to
-allow a verdict with warning status explicitly "unknown", capped at `MARGINAL`.
-*Current behaviour: spec-compliant refusal.*
+**O-1 · RESOLVED (session 3).** `official_warning_status` no longer blocks a
+SAFETY verdict; its absence **caps** the verdict at `MARGINAL` instead. See D-26
+and `config/thresholds/small_craft_v0.1.yaml`. ORCA can now say "conditions look
+marginal", and can never say favourable, when it could not check for a warning.
+IMD credentials remain the fix; this is the honest interim.
 
 **O-2 · Threshold values are unvalidated.** `small_craft_v0.1` and `fishing_v0.1` are
 engineering parameters, surfaced in every answer as
@@ -381,9 +380,9 @@ IMD is the critical path. Everything else degrades explicitly.
    critical path for everything that is not credential-blocked.**
 3. **Geospatial completion** — field masking, GeoJSON output, geofencing. The
    containment kernel (`topology.py`) landed with §10; geofencing can reuse it directly.
-5. **IMD adapter** — build to spec now so it works the day credentials arrive; it
+8. **IMD adapter** — build to spec now so it works the day credentials arrive; it
    already degrades correctly.
-6. **Documents 23–30** — diagrams, ADRs (fold in §4 and §10.3 above), gap register,
+9. **Documents 23–30** — diagrams, ADRs (fold in §4 and §10.3 above), gap register,
    judge Q&A, traceability, glossary, quickstart, definition of done.
 6. **Boundary follow-ups** (small, from §10.2): widen the snapshot region east of 90 E
    so Andaman and Nicobar positions can be answered; get the VLIZ licence review done
@@ -662,6 +661,7 @@ cannot drift out of step with what the engine will demand.
 | **F-21** | **Re-planning for an unfillable gap is an infinite-ish loop of identical requests.** The first live run re-planned twice for `official_warning_status` (no source at all) and `wind_speed` (tool already answered with stale data), re-issuing the same calls and inflating the evidence count 17 → 23 → 29 with duplicates. A gap is only worth re-planning if some tool yielding it is **available and not yet attempted**; `ValidationReport.actionable_gaps` now carries that, and an unfillable gap degrades the domain instead (`06` §3.8). |
 | **F-22** | **`07` §5 routes `BLOCKED` to `finalize`, which delivers the user nothing.** §8's degradation ladder requires BLOCKED to produce "no verdict, explicit statement of what could not be reached". Deviation recorded: BLOCKED routes to `report`, which composes the explanation over assessments that are all `INSUFFICIENT_EVIDENCE`. The grounding validators forbid it from asserting safety, so it explains without ever concluding. |
 | **F-23** | A time-independent question ("am I inside the EEZ?") legitimately resolves **no** time window, and the Planner correctly does not ask for one — but the analysis frame still needs an interval. `_window` defaults to the present; time-sensitive intents never reach it without a window because the Planner asks first. |
+| **F-25** | **Resolving O-1 did not unblock the demo, because `wind_speed` has no forecast source either.** CMEMS wind is an L4 *observation* product with no forecast horizon (F-11), so a query about tomorrow — the demo's own query — yields `STALE_DATA` and SAFETY still refuses, correctly, since wind is a measurement and does not cap. `03` §7 already names the answer: `get_weather` is specified as S-05 IMD (auth) with **S-11 NOAA as the designated fallback, still PROPOSED**. Building it is the one remaining thing between ORCA and an end-to-end safety verdict, and it needs no credentials. |
 | **F-24** | The chlorophyll local-median ratio was derived in the **CLI**, reaching into the CMEMS adapter. `agents/` may never do that, so the derivation moved into `get_chlorophyll` (`tools/` may import both `adapters/` and `geospatial/`). One code path now, and every consumer of the capability gets the same evidence. |
 
 ### 11.5 Design decisions
@@ -691,6 +691,27 @@ which keeps state to plain data that can be replayed for audit.
 A missing branch would stall the LangGraph superstep, so a failed domain appends
 `INSUFFICIENT_EVIDENCE` (or `UNKNOWN` for REGULATORY, which has its own
 vocabulary). The join count always matches the dispatch count.
+
+**D-26 · A missing authority check caps the verdict; a missing measurement still blocks it.**
+**Context.** O-1. `official_warning_status` was a required SAFETY factor with no
+reachable source, so SAFETY always returned `INSUFFICIENT_EVIDENCE` and every
+answer ended in `CANNOT_ADVISE` — including `16_DEMO...` §2 segment 6, which the
+demo spec calls "the differentiator".
+**Decision.** Threshold sets gain a `capping_factors` tier. A required factor
+listed there ceilings the verdict at a named band when missing, instead of
+refusing. `official_warning_status` caps at `marginal`.
+**Rationale.** An authority check is not a measurement. Without wave height or
+wind there is no sea state to assess and ORCA must refuse. Without a warning
+check there *is* an assessable sea state — what is missing is the authority that
+would have overridden it. Refusing outright withholds usable information;
+answering uncapped could say "favourable" while a cyclone warning stands. The
+cap is the narrow path between those.
+**Consequences.** ORCA can never say favourable without an authority check.
+Confidence is capped at medium, the gap is named in every answer, the rationale
+states that the verdict is a ceiling, and `Assessment.verdict_capped_by` records
+it. The reporting absence-guard treats a capped verdict as *not* assessed, so a
+narrative still cannot claim safety. Deviates from `12` §4.1 as written.
+**Reversal.** Delete the `capping_factors` block once IMD credentials exist.
 
 ### 11.6 Deviations from the design documents
 
@@ -728,3 +749,89 @@ Running the same question through `cli.ask` rather than `cli.query`:
 * **No import-linter in CI.** The contracts are asserted by
   `tests/unit/test_import_boundaries.py` (80 assertions) rather than at build
   time.
+
+---
+
+## 12. Session 4 — the NOAA GFS wind forecast (S-11)
+
+Built because of F-25: without a wind *forecast* no SAFETY verdict was possible
+for any future window, so the demo's central segment could not run. This is the
+adapter `03` §7 already specified as the `get_weather` fallback, and it needs no
+credentials.
+
+### 12.1 Finding the endpoint — three dead ends
+
+`03` §7 named "NOAA" without an endpoint. The obvious routes are gone:
+
+| ID | Finding |
+|---|---|
+| **F-26** | **NOMADS OPeNDAP is retired** (NWS Service Change Notice 25-81). `nomads.ncep.noaa.gov/dods` answers **HTTP 200 with an HTML retirement notice**, so a client that trusted the status code would parse the notice as data. This is F-3's lesson again in a new form: a 200 is not a result. |
+| **F-27** | `coastwatch.pfeg.noaa.gov` and `upwell.pfeg.noaa.gov`, the long-standing CoastWatch ERDDAP hosts, both **time out**. Other NOAA ERDDAPs (`osmc`, `erddap.aoml`) are up but serve observing-network data, not NWP. |
+| **F-28** | The surviving NOMADS **GRIB filter** works, but serves GRIB2. Decoding it needs an `eccodes`/`cfgrib` binary dependency, and a GRIB2 decoder is an order of magnitude more work than D-1's Zarr reader (JPEG2000 and complex packing with spatial differencing). Rejected on both counts. |
+
+**Resolution.** PacIOOS (University of Hawaii, an IOOS regional association)
+republishes the NCEP GFS run over **ERDDAP griddap**, which ORCA already reads.
+Global 0.5°, hourly steps, **+164 h horizon** when measured on 2026-09-03.
+
+**D-27 · The originating authority and the distributor are both recorded.**
+The data is NOAA NCEP GFS; PacIOOS is the host. Provenance names NOAA as
+`source`/`organisation` and PacIOOS in `notes` and the licence reference, and
+never presents the redistributor as the authority. A system that cites
+authorities has to be exact about which one it is citing.
+
+### 12.2 What was built
+
+```
+backend/orca/adapters/
+├── erddap.py              188 lines  SHARED ERDDAP protocol (new)
+├── incois_erddap/client.py 101 lines  was 232 -- now only the INCOIS host
+└── noaa_gfs/                          client, bindings, adapter (S-11)
+```
+
+**D-28 · The ERDDAP protocol is shared; the host is not.**
+ERDDAP is a server product, not a source, and its quirks belong to the software:
+the selector characters the servlet container rejects (F-5), the errors returned
+under HTTP 200, the "unknown datasetID" body that means a dataset was unloaded
+(F-3). Those are now in `adapters/erddap.py` and cannot be fixed for one ERDDAP
+and not another. Base URL, TLS and dataset bindings stay per-host — INCOIS keeps
+its incomplete-chain workaround (F-1), GFS uses standard TLS. `incois_erddap`
+subclasses the shared client and keeps its public API, so its suite was
+unchanged and INCOIS returned an identical live value after the refactor.
+
+The adapter emits wind **components**; the kernel derives speed and direction
+with a recorded method (D-8), exactly as for CMEMS. GFS publishes no gust in
+this dataset, so `wind_gust` stays unavailable and is reported as not evaluated
+— never approximated from the mean wind.
+
+### 12.3 A gate that was judging the wrong thing
+
+| ID | Finding |
+|---|---|
+| **F-29** | **The validate gate ran before derivation, so it judged coverage against values the run had not computed yet.** Derivation lived in `geo_reason`, which runs *after* `validate`, so `wind_speed` was reported as a missing required input in the `ValidationReport` while the assessment immediately went on to use it. The audit artifact contradicted the answer. Not caught earlier because wind was genuinely missing until this session; the GFS forecast made the two disagree visibly. Fixed by deriving in `tool_exec`, where the values are retrieved: `geo_reason` now *reports* derivations rather than performing them, and every downstream consumer sees one set of values. |
+
+### 12.4 Result
+
+For the demo's own question, against live data:
+
+```
+tool_exec   get_weather (fallback)   satisfied     <- GFS served a future window
+validate    21 value(s); required gaps: official_warning_status
+assess_safety   SAFETY = MARGINAL (confidence medium)
+ANSWER [PROCEED_WITH_CAUTION]   disposition: AUTO_RELEASE
+```
+
+`16` §2 segment 3 wanted "one visible failure and one fallback" — the fallback is
+now real and is stated. **SAFETY produces a verdict for tomorrow**, which no
+combination of sources could do before.
+
+### 12.5 What this does not fix
+
+* **The demo still cannot show FAVOURABLE fishing beside MARGINAL safety**
+  (`16` §2 segment 6). Both domains currently read MARGINAL, driven by a
+  chlorophyll ratio of 1.026 — near the middle of its band. The *mechanism* for
+  disagreement is built and tested; whether the sea disagrees on demo day is not
+  ours to arrange. A recorded run at a location and date where the two genuinely
+  diverge is the honest way to show it, which is another argument for replay mode.
+* **`wind_gust` has no source.** GFS publishes none here; IMD would.
+* **Conflict detection (M-32) is still unbuilt**, though GFS now gives
+  `get_wave_conditions` a plausible second source for it.

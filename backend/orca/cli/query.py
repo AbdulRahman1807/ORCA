@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from ..adapters.cmems.adapter import CmemsAdapter
 from ..adapters.incois_erddap.adapter import IncoisErddapAdapter
 from ..adapters.marineregions.adapter import MarineRegionsAdapter
+from ..adapters.noaa_gfs.adapter import NoaaGfsAdapter
 from ..assessment.engine import EvidencePool, assess_domain
 from ..assessment.regulatory import assess_regulatory
 from ..geospatial.derive import derive_from_envelope
@@ -60,12 +61,14 @@ def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
           f"{boundary_env.timing.duration_ms:>5} ms  "
           f"{boundary_env.source_resolution.actual_source or '-'}  [{codes}]")
 
-    with IncoisErddapAdapter() as erddap, CmemsAdapter() as cmems:
+    with IncoisErddapAdapter() as erddap, CmemsAdapter() as cmems, \
+            NoaaGfsAdapter() as gfs:
         calls = [
             ("get_wave_conditions", lambda: get_wave_conditions(lat, lon, when,
                                                                 adapter=cmems)),
             ("get_currents", lambda: get_currents(lat, lon, when, adapter=cmems)),
-            ("get_weather", lambda: get_weather(lat, lon, when, adapter=cmems)),
+            ("get_weather", lambda: get_weather(lat, lon, when, adapter=cmems,
+                                                gfs=gfs)),
             ("get_ocean_observations", lambda: get_ocean_observations(lat, lon, when,
                                                                       adapter=erddap)),
             ("get_sst", lambda: get_sst(lat, lon, when, adapter=erddap, cmems=cmems)),

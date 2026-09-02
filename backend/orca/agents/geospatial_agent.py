@@ -16,9 +16,8 @@ from typing import Any
 
 from ..assessment import staleness
 from ..geospatial import temporal
-from ..geospatial.derive import derive_from_envelope
 from ..llm.provider import LLMRequest
-from ..schemas.enums import Domain
+from ..schemas.enums import Domain, ValueKind
 from ..schemas.envelope import OrcaEnvelope
 from .base import Agent, AgentResult
 from .contracts import AlignmentReport
@@ -45,16 +44,12 @@ class GeospatialAgent(Agent):
         unsupported: list[dict[str, Any]] = []
 
         for env in envelopes:
-            # Vector pairs -> scalar speed/direction. A derivation, never an
-            # adapter's job (D-8); each carries method, version and inputs.
-            try:
-                d_data, d_prov = derive_from_envelope(env)
-            except Exception:
-                d_data, d_prov = [], []
-            if d_data:
-                env.data.extend(d_data)
-                env.provenance.extend(d_prov)
-                derived_ids.extend(p.provenance_id for p in d_prov)
+            # Derivations are computed at retrieval so the validate gate sees
+            # them (see graph/nodes/retrieval.py). This agent REPORTS them: a
+            # derived value is recognisable by its value_kind and carries the
+            # method, version and inputs that make it recomputable (D-8).
+            derived_ids.extend(p.provenance_id for p in env.provenance
+                               if p.value_kind is ValueKind.DERIVED)
 
             prov_by_id = {p.provenance_id: p for p in env.provenance}
             for obs in env.data:

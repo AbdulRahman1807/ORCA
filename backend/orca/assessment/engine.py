@@ -299,12 +299,20 @@ def assess_domain(domain: Domain, pool: EvidencePool, *,
                      and n.factor not in driver_params]
 
     # -- 2. SUFFICIENCY
+    #
+    # A missing required factor either BLOCKS the verdict or CAPS it (O-1). An
+    # authority check is not a measurement: without wave height there is no sea
+    # state to assess, but without a warning check there is -- what is missing
+    # is the authority that would override it. So a capping factor yields a
+    # ceilinged verdict, and everything else still refuses.
     missing_required = [f for f in tset.required_factors if f not in usable_required]
-    insufficient = bool(missing_required) or usable_count < tset.min_usable_factors
+    capping = [f for f in missing_required if tset.cap_for(f)]
+    blocking = [f for f in missing_required if f not in capping]
+    insufficient = bool(blocking) or usable_count < tset.min_usable_factors
 
     if insufficient:
-        reason = (f"required input(s) unavailable: {', '.join(missing_required)}"
-                  if missing_required else
+        reason = (f"required input(s) unavailable: {', '.join(blocking)}"
+                  if blocking else
                   f"fewer than {tset.min_usable_factors} usable indicator(s)")
         return DomainResult(
             Assessment(
@@ -341,6 +349,38 @@ def assess_domain(domain: Domain, pool: EvidencePool, *,
     # -- 6. CONFIDENCE
     confidence = _confidence(tset, drivers, not_evaluated, quality_penalties)
 
+    # -- 7. CAP: a required factor we could not check ceilings the verdict.
+    rationale = (f"{verdict.value} for {domain.value}; the limiting factor is "
+                 f"{worst.factor} at {worst.value:g} {worst.unit or ''}".strip()
+                 + f" ({worst.band}).")
+    capped_by: list[str] = []
+    for factor in capping:
+        cap_verdict = _BAND_TO_VERDICT[tset.cap_for(factor)]
+        capped_by.append(factor)
+        if _VERDICT_SEVERITY.index(verdict) < _VERDICT_SEVERITY.index(cap_verdict):
+            verdict = cap_verdict
+            # The ceiling, not a favourable driver, is what governs the answer.
+            limiting = factor
+        else:
+            limiting = worst.factor
+        worst_factor = limiting
+
+    if capped_by:
+        # Confidence can never be high on a verdict we were not able to check.
+        if _CONFIDENCE_LADDER.index(confidence) > _CONFIDENCE_LADDER.index(
+                Confidence.MEDIUM):
+            confidence = Confidence.MEDIUM
+        reasons = "; ".join(
+            (tset.capping_factors[f].get("reason") or "").strip().rstrip(".")
+            for f in capped_by if tset.capping_factors.get(f))
+        rationale = (f"{verdict.value} for {domain.value}, capped because "
+                     f"{', '.join(capped_by)} could not be checked. {reasons}. "
+                     f"This is a ceiling, not a measurement: ORCA does not state "
+                     f"that conditions are favourable when it could not check "
+                     f"for an official warning.")
+    else:
+        worst_factor = worst.factor
+
     return DomainResult(
         Assessment(
             assessment_id=_new_id("as"), domain=domain, verdict=verdict,
@@ -349,12 +389,11 @@ def assess_domain(domain: Domain, pool: EvidencePool, *,
                                  valid_to=window_end),
             drivers=drivers, not_evaluated=not_evaluated,
             missing_required=[],
-            limiting_factor=worst.factor,
+            verdict_capped_by=capped_by,
+            limiting_factor=worst_factor,
             official_warning_status=warning_status,
             threshold_set=set_id, threshold_set_status=tset.status,
-            rationale=(f"{verdict.value} for {domain.value}; the limiting factor is "
-                       f"{worst.factor} at {worst.value:g} {worst.unit or ''}".strip()
-                       + f" ({worst.band}).")),
+            rationale=rationale),
         evidence)
 
 
