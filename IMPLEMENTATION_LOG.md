@@ -1,12 +1,16 @@
 # ORCA — Implementation Log
 
 **Session:** 2026-09-02 · **Phase:** design set → Phase 1–6 partial
-**State at end of session:** ~55% of backend logic · 5,760 lines implementation ·
-1,348 lines tests · 122 tests passing (0.25 s, all offline)
+**State at end of session:** ~70% of the MVP backend · 10,005 lines implementation ·
+2,591 lines tests · **289 tests passing** (1.0 s, all offline, no LLM)
 
-*Session 2 added the MarineRegions boundary adapter and the REGULATORY domain
-(§10). Everything above §10 describes the state after session 1 and is still
-current except where §10 says otherwise.*
+*Read §§10–13 for what came after session 1.* Session 2 added the MarineRegions
+boundary adapter and the REGULATORY domain (§10). Session 3 added the five
+agents, the LangGraph orchestration and the LLM provider abstraction (§11).
+Session 4 added the NOAA GFS wind forecast (§12). Session 5 verified every data
+source, brought the INCOIS PFZ advisory live and settled tide (§13).
+Everything above §10 describes the state after session 1 and is still current
+except where the later sections say otherwise.*
 
 This document records what was built, why, and the decisions taken while building it.
 It is the handover artifact: read this before resuming.
@@ -19,11 +23,11 @@ It is the handover artifact: read this before resuming.
 |---|---|
 | Documentation | Design documents **01–22** written (23–30 not started) |
 | Phase 0 — foundation | Repo, venv, package layout, test harness |
-| Phase 1 — adapters | **INCOIS ERDDAP**, **CMEMS** and **MarineRegions** adapters, all live and verified |
+| Phase 1 — adapters | **five** adapters live and verified: INCOIS ERDDAP, INCOIS GeoServer, CMEMS, MarineRegions, NOAA GFS |
 | Phase 2 — canonical schema | Complete, with structural invariants enforced |
-| Phase 3 — capability tools | **7 of 11 P0 tools** |
-| Phase 4 — agents | **Not started** |
-| Phase 5 — LangGraph | **Not started** |
+| Phase 3 — capability tools | **9 of 12 bound, 8 returning live data** |
+| Phase 4 — agents | **All five built** (Planner, Discovery, Geospatial, Risk, Reporting) |
+| Phase 5 — LangGraph | **Graph running end to end**, incl. durable human review |
 | Phase 6 — geospatial kernel | Geodesy, temporal alignment, derivations, containment (~65 %) |
 | — assessment engine | Thresholds, sufficiency, verdicts, confidence, synthesis, REGULATORY (~90 %) |
 
@@ -41,45 +45,30 @@ assessed, because it holds whatever the weather does.
 
 ## 2. Code Map
 
+*Current as of session 5.*
+
 ```
 backend/orca/
-├── schemas/          819 lines   canonical model
-│   ├── enums.py                  value kinds, verdicts, domains, representativeness
-│   ├── errors.py                 canonical error taxonomy + legacy mapping
-│   ├── core.py                   SpatialRef, TemporalRef, Provenance, Quality, BBox
-│   ├── data.py                   Observation, Forecast, OceanField, RasterRef, …
-│   ├── assessment.py             Evidence, Claim, Assessment, Recommendation
-│   ├── envelope.py               OrcaEnvelope + provenance-join invariant
-│   └── units.py                  unit aliases + explicit conversion
-├── adapters/        2590 lines   THE ONLY PLACE WITH PROVIDER KNOWLEDGE
-│   ├── incois_erddap/            client, metadata capture + validation, bindings, adapter
-│   ├── cmems/                    store (Zarr v2 reader), client, bindings, adapter
-│   └── marineregions/            WFS client, snapshot writer/reader, boundary adapter
-├── tools/            487 lines   capability contracts + multi-source fallback
-│   ├── base.py                   validation, ToolRun, collect_from_sources
-│   ├── ocean.py                  get_ocean_observations, get_sst, get_chlorophyll
-│   ├── marine.py                 get_wave_conditions, get_currents
-│   └── boundaries.py             get_maritime_boundaries
-├── geospatial/       622 lines   deterministic kernel
-│   ├── geometry.py               geodesic distance/bbox, vector magnitude+direction
-│   ├── topology.py               ray casting, holes, antimeridian, edge distance
-│   ├── temporal.py               representativeness gate, alignment, freshness
-│   ├── derive.py                 vector pairs, ratio-to-local-median
-│   └── methods.py                method id + version registry
-├── assessment/      1015 lines   deterministic rule engine (no LLM)
-│   ├── thresholds.py             YAML threshold sets with validation status
-│   ├── staleness.py              per-parameter usable-age policy
-│   ├── jurisdiction.py           home/foreign placement + boundary implications
-│   ├── engine.py                 sufficiency → bands → worst-factor → confidence
-│   ├── regulatory.py             containment → PERMITTED/RESTRICTED/PROHIBITED/UNKNOWN
-│   └── synthesis.py              cross-domain headline, limiting factor
-└── cli/query.py      227 lines   vertical slice runner
+├── schemas/          824 lines   canonical model (a leaf: imports nothing from ORCA)
+├── llm/              270 lines   provider abstraction; ORCA runs with none configured
+├── adapters/        3483 lines   THE ONLY PLACE WITH PROVIDER KNOWLEDGE
+│   ├── erddap.py                 shared ERDDAP protocol (D-28)
+│   ├── incois_erddap/            S-01..S-04  Argo, archive SST/chlorophyll
+│   ├── incois_wms/               S-06        official PFZ advisory (vector)
+│   ├── cmems/                    S-07        waves, currents, SST, chlorophyll, wind obs
+│   ├── marineregions/            S-08        versioned maritime boundaries
+│   └── noaa_gfs/                 S-11        wind FORECAST (+164 h)
+├── tools/            944 lines   capability contracts, registry, composition root
+├── geospatial/       662 lines   deterministic kernel
+├── assessment/      1144 lines   deterministic rule engine (no LLM, ever)
+├── agents/          1244 lines   the five agents + grounding validators
+├── graph/           1053 lines   LangGraph state, routing, nodes, runtime
+└── cli/              381 lines   `ask` (agent-planned) · `query` (fixed slice)
 
-config/    datasets.json (captured) · boundaries.yaml · thresholds/*.yaml ·
-           staleness.yaml · tls/
-data/      boundaries/<version>/  captured snapshots — GIT-IGNORED, regenerate
-scripts/   capture_datasets.py · capture_boundaries.py
-tests/     unit/ adapters/ fixtures/upstream/{incois_erddap,cmems,marineregions}/
+config/    datasets.json · boundaries.yaml · thresholds/*.yaml · staleness.yaml · tls/
+data/      boundaries/<version>/  captured snapshots -- GIT-IGNORED, regenerate
+scripts/   capture_datasets.py · capture_boundaries.py · check_sources.py
+tests/     unit/ adapters/ agents/ graph/ fixtures/upstream/<source>/
 ```
 
 **Layering rule.** `agents → tools → adapters → source`. Nothing above `adapters/`
@@ -87,7 +76,7 @@ knows a URL, a credential, ERDDAP selector syntax or that Zarr exists. This was
 maintained throughout and should be enforced by an import-linter contract when
 `agents/` lands (`18_REPOSITORY_STRUCTURE.md` §1). `assessment/` does not import
 from `adapters/` either: both read `config/boundaries.yaml`, each taking the
-section it owns (D-17).
+section it owns (D-18).
 
 ---
 
@@ -127,8 +116,9 @@ confirmed. **Most datasets are historical archives.**
 | ARCO store `.zmetadata` | **200** |
 | ARCO data chunk `VHM0/0.0.0` | **200**, 521,648 bytes |
 
-`AUTH REQUIRED` holds for the subsetting/download services, **not** for the ARCO object
-store. Datasets bound (ids read from the public STAC catalogue, not guessed):
+`AUTH REQUIRED` appeared not to hold for the ARCO object store. **This was later shown
+to be only partly true — see §3.3.** Datasets bound (ids read from the public STAC
+catalogue, not guessed):
 
 | Capability | Dataset | Coverage |
 |---|---|---|
@@ -150,6 +140,31 @@ another NWP source.
 | **F-10** | Zarr **omits all-fill chunks**. A missing chunk must read as *no data*, never `0.0` — which would present as a calm sea. |
 | **F-11** | No scalar wind speed is published, only components. |
 | **F-12** | OSTIA publishes SST in **kelvin**. Assuming °C reports ~301 °C for a tropical sea. |
+
+### 3.3 CMEMS access is only partly reliable without credentials — correction to §3.2
+
+Late in the session, data chunks that had returned 200 began returning `403
+AccessDenied`. End-of-session state:
+
+| Product | Bucket | Data chunk | Across the session |
+|---|---|---|---|
+| Waves, currents (analysis/forecast) | `arco-time-015` | **200** | reliable throughout |
+| SST (OSTIA) | `arco-time-045` | **403** | worked, then intermittent |
+| Chlorophyll, wind (observation L4) | `arco-time-044/050` | **403** | worked, then denied |
+
+| ID | Finding |
+|---|---|
+| **F-13** | A denied request and a nonexistent key return an **identical** `AccessDenied` body (verified with a deliberately nonsensical key). Status and body **cannot distinguish "missing chunk" from "denied"** — a real ambiguity, because Zarr legitimately omits all-fill chunks. |
+| **F-14** | The same chunk returned 200 early and 403 later, pointing to throttling or an egress quota rather than a static policy. |
+
+**This invalidates the §3.2 correction.** The audit's original `AUTH REQUIRED` was closer
+to correct. Forecast products are usable unauthenticated today; observation products are
+not reliable. **Obtaining CMEMS credentials is now a priority action.**
+
+The system behaved correctly under the change without any code alteration: it returned
+`AUTH_REQUIRED`, did not retry, did not silently substitute, fell back to the INCOIS
+archive, flagged it `STALE_DATA`, and issued `INSUFFICIENT_EVIDENCE` rather than a
+verdict. That is the designed behaviour working under an unplanned upstream change.
 
 ---
 
@@ -248,6 +263,19 @@ survives refactoring; one written in a document does not.
 A missing wave forecast is a `SAFETY` gap. Listing it under `FISHING_SUITABILITY` is
 noise, and a factor that produced a usable driver is not simultaneously "not evaluated".
 
+### D-13 · `403` is a failure, never "no data"
+**Context.** F-13. Zarr omits all-fill chunks, so a missing chunk is normal and must read
+as absent. On the CMEMS buckets a missing key returns `403 AccessDenied` — identical to a
+genuine denial.
+**Decision.** `404` reads as absent. `403` raises.
+**Alternative considered and rejected.** Treating `403` as absent. I implemented this
+first, because it made chlorophyll work again — then reverted it. The two cases are
+indistinguishable, so the heuristic would silently discard real observations, and a
+land-masked or denied sea would read as a calm one.
+**Consequences.** Availability is lower: a throttled chunk fails the query instead of
+degrading. Correctness is preserved, which is the right trade for a system that makes
+safety statements. Credentials remove the ambiguity entirely.
+
 ### D-12 · Upstream fixtures are recorded, never hand-authored
 `tests/fixtures/upstream/` carries capture dates. A hand-written fixture would make the
 adapter suite test a fiction.
@@ -258,7 +286,7 @@ adapter suite test a fiction.
 
 | Document | Deviation | Reason |
 |---|---|---|
-| `03` §5/§7 — CMEMS `AUTH REQUIRED` | ARCO store needs no credentials | Verified live; recorded in §15 |
+| `03` §5/§7 — CMEMS `AUTH REQUIRED` | Partly wrong in both directions: forecast products need no credentials, observation products are unreliable without them | §15.5; the audit was closer to correct than my first correction |
 | `03` §5 — ERDDAP "viable backbone" | True for access, not currency | Verified live; recorded in §14 |
 | `22` §7 — "guaranteed floor" of 4 live capabilities | Both weaker (ERDDAP archives) and stronger (CMEMS unauthenticated) than recorded | §15.4 |
 | `04` §3.7 — chlorophyll bands | Factor is a ratio to local median, not a raw value | `12` §5.3 forbids absolute language |
@@ -269,12 +297,11 @@ adapter suite test a fiction.
 
 ## 6. Open Decisions Needing Input
 
-**O-1 · `official_warning_status` is a required safety input, so no safety verdict is
-possible without IMD credentials.** This follows `12` §4.1 and is the most defensible
-position — a warning cannot be synthesised from model fields. But it means the demo
-cannot show a safety verdict at all until credentials arrive. The alternative is to
-allow a verdict with warning status explicitly "unknown", capped at `MARGINAL`.
-*Current behaviour: spec-compliant refusal.*
+**O-1 · RESOLVED (session 3).** `official_warning_status` no longer blocks a
+SAFETY verdict; its absence **caps** the verdict at `MARGINAL` instead. See D-26
+and `config/thresholds/small_craft_v0.1.yaml`. ORCA can now say "conditions look
+marginal", and can never say favourable, when it could not check for a warning.
+IMD credentials remain the fix; this is the honest interim.
 
 **O-2 · Threshold values are unvalidated.** `small_craft_v0.1` and `fishing_v0.1` are
 engineering parameters, surfaced in every answer as
@@ -282,7 +309,25 @@ engineering parameters, surfaced in every answer as
 
 **O-3 · Staleness tolerances are unvalidated** (D-5).
 
-**O-5 · The boundary implication table needs legal review** (D-17). It encodes the
+**O-6 · A narrow intent still triggers a full domain assessment.** The Planner
+narrows `warning_lookup` to `official_warning_status` alone and plans one
+capability — but the SAFETY *domain* still evaluates against the whole
+`small_craft_v0.1` required set, so the answer lists `significant_wave_height`
+and `wind_speed` as `NOT_RETRIEVED` when they were deliberately never requested.
+The output is truthful and the refusal is correct, but it reads as noise: it
+reports absence for things nobody asked for.
+
+Two defensible resolutions. (a) A warning lookup should report warning status
+and issue **no** SAFETY verdict at all — the user asked a lookup question, not
+for an assessment. (b) `not_evaluated` should distinguish *not planned* from
+*planned and not retrieved*, which is a smaller change and keeps the domain
+assessment intact.
+
+*Current behaviour: (b) is not implemented; everything unplanned shows as
+`NOT_RETRIEVED`.* This needs a product decision about what a lookup question
+should return.
+
+**O-5 · The boundary implication table needs legal review** (D-18). It encodes the
 ordinary reading of UNCLOS for a fishing vessel — a coastal state controls fishing in its
 own EEZ, foreign vessels need authorisation. It does **not** encode bilateral agreements,
 traditional fishing rights, the India–Sri Lanka arrangements, or any licence a particular
@@ -304,7 +349,7 @@ when attempted. Worth retrying.
 |---|---|---|
 | IMD registration | not started | warnings, cyclone, lightning, wind forecast — and therefore **any safety verdict** |
 | INCOIS WMS verification from an unrestricted network | not done | PFZ |
-| CMEMS credentials | **not needed** for current use | — |
+| **CMEMS credentials** | **priority — not started** | reliable SST, chlorophyll, wind; removes the 403 ambiguity (F-13) |
 | MOSDAC registration | not started | P1 enhancement only |
 | VLIZ / MarineRegions licence review | not started | nothing — CC-BY 4.0 attribution is carried; `14` §"terms" still wants a review |
 | Legal review of the boundary implication table | not started | nothing — the table is applied and labelled `LEGAL_REVIEW_REQUIRED` (O-5) |
@@ -316,49 +361,89 @@ IMD is the critical path. Everything else degrades explicitly.
 
 ## 8. Next Steps
 
-1. ~~**MarineRegions → `REGULATORY` verdict.**~~ **Done — see §10.**
-2. **Agents + LangGraph.** 25 % of remaining backend weight, no external dependencies,
-   and the architectural differentiator. The CLI currently hardcodes the orchestration
-   a Planner is meant to decide. Needs an LLM provider configured. **This is now the
-   critical path for everything that is not credential-blocked.**
-3. **Geospatial completion** — field masking, GeoJSON output, geofencing. The
-   containment kernel (`topology.py`) landed with §10; geofencing can reuse it directly.
-4. **IMD adapter** — build to spec now so it works the day credentials arrive; it
-   already degrades correctly.
-5. **Documents 23–30** — diagrams, ADRs (fold in §4 and §10.3 above), gap register,
-   judge Q&A, traceability, glossary, quickstart, definition of done.
-6. **Boundary follow-ups** (small, from §10.2): widen the snapshot region east of 90 E
-   so Andaman and Nicobar positions can be answered; get the VLIZ licence review done
-   (`14` §"terms"); find a source for restricted/naval zones, which is the one gap that
-   could turn a `PERMITTED` into something else.
+*Rewritten at the end of session 5, against the problem statement rather than
+against the roadmap alone (§14 explains why the two differ).*
 
----
+1. **IMD registration.** The only remaining SOURCE blocker. It gates official
+   warnings, lightning and cyclone tracks — three of the four unbound
+   capabilities and two of the problem statement's example queries. It is
+   paperwork, not engineering, and everything already degrades correctly around
+   it. Start it before writing more code.
+2. **Conversational API + working multi-turn.** The platform is specified as
+   conversational and currently answers one question from a CLI.
+   `session_context` is read but never written, so a second turn inherits
+   nothing (§14). This unlocks three named capabilities at once.
+3. **Multilingual.** Its own bullet in the problem statement, with emphasis on
+   Indian regional languages, and currently at zero — `language` is plumbing
+   that is always `"en"`. Cheaper than it looks: the deterministic template
+   composes answers from structured fields, so this is a lexicon problem rather
+   than a model problem, and `06` §7.2 already forbids translating numbers or
+   quoted official text.
+4. **Geofencing notifications.** Nearly free: distance-to-boundary and a
+   `near_boundary` flag are already computed on every run. Turning that into a
+   proximity notification is small, and it is a named deliverable.
+5. **Map and charts.** Named twice in the problem statement. The layer
+   descriptors and evidence already exist to render.
+6. **A second wind source.** S-11 is the only wind forecast and is
+   intermittently slow (§13.4); when it fails SAFETY loses a required input.
+7. **Persistence (`db/`).** Closes the Phase 5 gate and enables the offline
+   replay mode `16` §4 wants for a blocked venue network.
+8. **Retire `cli/query.py`.** The graph CLI supersedes it; keeping both invites
+   drift.
+9. **Route optimisation**, and **documents 23–30**.
 
 ## 9. How to Run
 
 ```bash
 python3 -m venv .venv
-./.venv/bin/pip install pydantic httpx certifi truststore numcodecs numpy pyyaml pytest
+./.venv/bin/pip install pydantic httpx certifi truststore numcodecs numpy pyyaml \
+                        pytest langgraph
 
-./.venv/bin/python -m pytest tests -q                 # 122 offline tests
-./.venv/bin/python scripts/capture_datasets.py        # live INCOIS metadata capture
-./.venv/bin/python -m scripts.capture_boundaries      # live MarineRegions snapshot
-./.venv/bin/python -m backend.orca.cli.query          # vertical slice, live
-./.venv/bin/python -m backend.orca.cli.query --when 2011-06-15T00:30:00
-./.venv/bin/python -m backend.orca.cli.query --lat 7.00 --lon 79.30 --label "west of Colombo"
+./.venv/bin/python -m pytest tests -q          # 289 offline tests, no network, no LLM
+
+./.venv/bin/python scripts/capture_boundaries.py   # REQUIRED once: boundary snapshot
+./.venv/bin/python scripts/capture_datasets.py     # live INCOIS metadata capture
+./.venv/bin/python scripts/check_sources.py        # live source audit -- run this first
 ```
 
-**Run `capture_boundaries` first.** `data/boundaries/` is git-ignored
-(`18_REPOSITORY_STRUCTURE.md` §6), so a fresh clone has no boundary geometry and
-`get_maritime_boundaries` returns `DATASET_UNAVAILABLE` naming the script — which is the
-correct degradation, not a bug. The capture takes about 35 s and writes 7.2 MB. Pin a
-snapshot with `ORCA_MARINEREGIONS_SNAPSHOT_VERSION` so a deployment cannot drift onto
-newer geometry unnoticed.
+`check_sources.py` exercises every capability against a real position and prints
+what each source actually did. **Run it before believing any claim in this
+document about what works.** Try `--lat 15.5 --lon 81.5` for a position inside
+the current PFZ issue.
 
-The archive-date invocation targets a date inside ERDDAP's archive coverage and shows the
-pipeline producing a verdict from historical data — useful for demonstrating the
-reasoning path independently of current data availability. The Colombo invocation shows
-`REGULATORY = RESTRICTED` overriding a safety refusal in the headline.
+`data/boundaries/` is git-ignored, so a fresh clone must run
+`capture_boundaries.py` before the REGULATORY domain can decide anything; the
+adapter says exactly that when the snapshot is absent.
+
+**Ask ORCA a question** — a Planner decides what to retrieve:
+
+```bash
+./.venv/bin/python -m backend.orca.cli.ask "is it good for fishing near Kochi tomorrow morning?"
+./.venv/bin/python -m backend.orca.cli.ask "am I inside the Indian EEZ near Kochi?"
+./.venv/bin/python -m backend.orca.cli.ask "is there a warning in force right now?"
+```
+
+Watch the PLAN block change between them: the fishing question plans six tools
+and declares five gaps, the boundary question plans one, and the warning lookup
+plans **none** — its only source needs credentials — and says so.
+
+**The fixed vertical slice** (hardcoded orchestration, retained for comparison
+until it is retired — §8 step 3):
+
+```bash
+./.venv/bin/python -m backend.orca.cli.query
+./.venv/bin/python -m backend.orca.cli.query --when 2011-06-15T00:30:00
+```
+
+The second invocation targets a date inside ERDDAP's archive coverage and shows
+the pipeline producing a verdict from historical data — useful for demonstrating
+the reasoning path independently of current data availability.
+
+**No LLM is required.** With `ORCA_LLM_PROVIDER` unset, ORCA plans from
+deterministic tables and answers from a grounded template (D-21). Setting it
+(see `.env.example`) adds fluency; it cannot change a number or a verdict.
+
+**ORCA output is not an official advisory. Follow IMD and INCOIS bulletins.**
 
 ---
 
@@ -393,16 +478,21 @@ A boundary query costs 12–20 ms against 458,706 vertices.
 
 Full detail in `03_DATA_SOURCE_MATRIX.md` §16. The four that changed the design:
 
+*Numbering note.* These findings were authored as F-13–F-18 on the feature branch,
+which collided with the CMEMS `403` findings (§3.3) already holding F-13/F-14 on
+`main`. The MarineRegions set was renumbered **+2 to F-15–F-20** on merge; the CMEMS
+pair keeps F-13/F-14 because D-13 and §7 cite them. Read PR #1 accordingly.
+
 | ID | Finding |
 |---|---|
-| **F-13** | The layers declare `urn:ogc:def:crs:EPSG::4326`, so CQL `BBOX` is read **latitude first**. The first capture asked for the Indian Ocean and got Svalbard and the Russian Arctic — a plausible-looking, entirely wrong, non-empty result. |
-| **F-15** | `eez_12nm` and `eez_24nm` are **bands from the baseline, not nested discs**. 5 NM offshore is inside the territorial sea and outside the contiguous zone; 20 NM offshore is the reverse. Treating them as nested is wrong in both directions. |
-| **F-16** | `eez_internal_waters` publishes **nothing for Sri Lanka**. "Outside every internal-waters polygon" there is a gap in the source, not a fact about the point, and is downgraded to *not evaluated for this jurisdiction* (D-16). |
-| **F-17** | The service publishes **no version field** — only a release year inside the layer title. The capture parses it and **fails** rather than writing geometry that cannot be cited. |
+| **F-15** | The layers declare `urn:ogc:def:crs:EPSG::4326`, so CQL `BBOX` is read **latitude first**. The first capture asked for the Indian Ocean and got Svalbard and the Russian Arctic — a plausible-looking, entirely wrong, non-empty result. |
+| **F-17** | `eez_12nm` and `eez_24nm` are **bands from the baseline, not nested discs**. 5 NM offshore is inside the territorial sea and outside the contiguous zone; 20 NM offshore is the reverse. Treating them as nested is wrong in both directions. |
+| **F-18** | `eez_internal_waters` publishes **nothing for Sri Lanka**. "Outside every internal-waters polygon" there is a gap in the source, not a fact about the point, and is downgraded to *not evaluated for this jurisdiction* (D-17). |
+| **F-19** | The service publishes **no version field** — only a release year inside the layer title. The capture parses it and **fails** rather than writing geometry that cannot be cited. |
 
 ### 10.3 Design decisions
 
-#### D-13 · A versioned local snapshot, not a query-time WFS call
+#### D-14 · A versioned local snapshot, not a query-time WFS call
 **Context.** `04` §3.11 specifies a preloaded, versioned PostGIS snapshot. There is no
 PostGIS in this project yet.
 **Decision.** Capture to `data/boundaries/<version>/`: a manifest with provenance and
@@ -414,7 +504,7 @@ when the network does not.
 **Consequences.** `data/boundaries/` is git-ignored, so a fresh clone must run the
 capture; the adapter says exactly that when the snapshot is absent. Loading is 2 ms.
 
-#### D-14 · Coverage is a declared region, and outside it the answer is refusal
+#### D-15 · Coverage is a declared region, and outside it the answer is refusal
 **Context.** A snapshot holds the features intersecting a bbox. Outside that bbox,
 "inside no boundary" is indistinguishable from "we did not look".
 **Decision.** The snapshot records its region. A query outside it returns
@@ -423,16 +513,16 @@ capture; the adapter says exactly that when the snapshot is absent. Loading is 2
 found*. The failure this prevents is a vessel being told it is in international waters
 because the snapshot stopped at 90 E.
 
-#### D-15 · Boundary types are evaluated independently; the worst governs
-**Context.** F-15 — the zones are bands, not a hierarchy.
+#### D-16 · Boundary types are evaluated independently; the worst governs
+**Context.** F-17 — the zones are bands, not a hierarchy.
 **Decision.** Each type is tested separately and mapped through a configured implication
 (`home` / `foreign` / `none`); the most constraining outcome governs. Never averaged,
 never inferred from a neighbouring type.
 **Consequence.** Inside a foreign territorial sea is `PROHIBITED` even though the
 surrounding EEZ alone would be `RESTRICTED`.
 
-#### D-16 · A layer with no feature for this jurisdiction cannot say "outside"
-**Context.** F-16.
+#### D-17 · A layer with no feature for this jurisdiction cannot say "outside"
+**Context.** F-18.
 **Decision.** After containment, the adapter checks whether the governing EEZ's
 sovereign appears at all in each other layer. If not, that type is flagged and the
 assessment lists it as `INSUFFICIENT_COVERAGE`, not as unconstrained.
@@ -440,7 +530,7 @@ assessment lists it as `INSUFFICIENT_COVERAGE`, not as unconstrained.
 make the answer more restrictive, never less. Reporting it as "outside" would understate
 a restriction, which is the direction that gets someone arrested.
 
-#### D-17 · The geometry is a fact; what it means is a legal judgement, and they live apart
+#### D-18 · The geometry is a fact; what it means is a legal judgement, and they live apart
 **Context.** "Inside another state's EEZ ⇒ needs authorisation" is not something an
 adapter should assert, and not something an engineer should encode as a constant.
 **Decision.** The adapter reports only what the source publishes — sovereign, territory,
@@ -450,7 +540,7 @@ assessment read different sections of the same file and do not import each other
 **Consequence.** Every regulatory answer surfaces `LEGAL_REVIEW_REQUIRED`, exactly as
 threshold-based answers surface `SCIENTIFIC_VALIDATION_REQUIRED`.
 
-#### D-18 · An unevaluated boundary type is named in every answer
+#### D-19 · An unevaluated boundary type is named in every answer
 **Context.** `04` §3.11 rule 2 — an EEZ polygon is not a fishing regulation zone.
 **Decision.** `boundary_types` defaults to every type ORCA has a policy for, including
 the four with no source (MPA, restricted zone, fishing regulation zone, seasonal
@@ -459,7 +549,7 @@ closure). Each returns `DATASET_UNAVAILABLE` and appears under `not_evaluated`.
 clear". A `PERMITTED` verdict with unchecked restrictions is therefore capped at medium
 confidence — an unchecked naval exercise area can only make things worse.
 
-#### D-19 · A regulatory constraint outranks a safety refusal in the headline
+#### D-20 · A regulatory constraint outranks a safety refusal in the headline
 **Context.** `synthesise` answered a safety-input gap with `CANNOT_ADVISE` before
 looking at any other domain, which would have buried a `RESTRICTED` or `PROHIBITED`
 result — and today safety *always* refuses, for want of IMD credentials.
@@ -473,8 +563,8 @@ nothing else can be said.
 
 | Document | Deviation | Reason |
 |---|---|---|
-| `04` §3.11 / `09` §4.2 — PostGIS snapshot | Flat `.npz` arrays + JSON manifest | D-13; no PostGIS in the project yet. The interface is unchanged and the store is swappable |
-| `06` §476 — `REGULATORY PERMITTED confidence high` | `PERMITTED` is capped at **medium** while restriction-bearing types are unevaluated | D-18 |
+| `04` §3.11 / `09` §4.2 — PostGIS snapshot | Flat `.npz` arrays + JSON manifest | D-14; no PostGIS in the project yet. The interface is unchanged and the store is swappable |
+| `06` §476 — `REGULATORY PERMITTED confidence high` | `PERMITTED` is capped at **medium** while restriction-bearing types are unevaluated | D-19 |
 | `12` §11 — category table | No category is defined for `REGULATORY RESTRICTED`; mapped to `PROCEED_WITH_CAUTION` | Needing another state's authorisation is neither a prohibition nor "proceed with context" |
 | `04` §3.11 — `international_boundary` as a boundary type | Not configured. `eez_boundaries` is a **line** layer; containment is undefined for it | Distance to the nearest EEZ edge already answers "how far am I from the line", and is reported |
 
@@ -493,8 +583,468 @@ nothing else can be said.
   in Kochi. The domain says so in the evidence statement rather than picking one — but a
   coarse land mask (`18` §6 already reserves `data/landmask/`) would let it distinguish
   them, and that is worth doing.
-* **East of 90 E is uncovered** by the default snapshot (F-18).
+* **East of 90 E is uncovered** by the default snapshot (F-20).
 
 ---
 
 **ORCA output is not an official advisory. Follow IMD and INCOIS bulletins.**
+
+---
+
+## 11. Session 3 — Agents and the LangGraph Orchestration
+
+Phase 4 and Phase 5. The CLI previously hardcoded the orchestration a Planner is
+meant to decide; it no longer has to.
+
+### 11.1 What was built
+
+```
+backend/orca/
+├── llm/              ~260 lines   provider abstraction
+│   ├── provider.py               LLMProvider protocol, registry, UnavailableProvider
+│   ├── providers/                one module per provider (lazy SDK import)
+│   └── usage.py                  token ledger + budget enforcement
+├── agents/          ~1180 lines   judgement layer
+│   ├── base.py                   budgets, AgentResult, structured failure
+│   ├── contracts.py              Plan, RetrievalReport, ValidationReport, AlignmentReport
+│   ├── planner.py                intent, domain/evidence tables, plan + re-plan
+│   ├── discovery.py              step execution, widening policy, coverage report
+│   ├── geospatial_agent.py       alignment + derivation, AlignmentReport
+│   ├── risk.py                   per-domain assessment + validated rationale
+│   ├── reporting.py              narrative, claims, template fallback
+│   └── validators/grounding.py   numeric fidelity, official language, absence guard
+├── graph/           ~1100 lines   orchestration
+│   ├── state.py                  OrcaGraphState + reducers
+│   ├── runtime.py                OrcaRuntime carried through config, not state
+│   ├── routing.py                conditional edges, Send fan-out
+│   ├── build.py                  graph assembly
+│   ├── events.py                 node events (never chain-of-thought)
+│   └── nodes/                    context, planning, retrieval, validation,
+│                                 analysis, assessment, delivery
+├── tools/registry.py             catalogue + per-environment enablement
+├── tools/live.py                 composition root binding adapters
+└── cli/ask.py                    graph-driven CLI
+```
+
+`config/` gains nothing; `.env.example` was added (it was specified in `19` but
+missing).
+
+### 11.2 The central decision: ORCA runs without a model
+
+**D-21 · No LLM is required, and the deterministic path is first-class.**
+**Context.** Phase 4 needs "an LLM provider configured" and none is. Making the
+agents depend on one would have made the whole reasoning layer untestable
+offline and undemonstrable without a key.
+**Decision.** `LLMProvider` resolves from `ORCA_LLM_PROVIDER`; when nothing is
+configured it returns an `UnavailableProvider` whose `available` is `False`.
+Every agent consults `use_llm()` and takes a deterministic path otherwise.
+**Rationale.** The specification *already* mandates a deterministic fallback at
+every LLM site — plan repair (`06` §3.8), template rationale (§6.7), template
+answer (§7.8). Making those the default rather than the exception costs nothing
+and means an unconfigured deployment produces a complete, grounded, less fluent
+answer instead of no answer.
+**Consequence.** All 289 tests are offline and model-free. Configuring a model
+changes fluency; it cannot change a number or a verdict, and tests assert that.
+
+### 11.3 Where the LLM is allowed to act, and what constrains it
+
+| Site | What the model may do | What stops it doing harm |
+|---|---|---|
+| Planner intent | Classify into one of nine intents | Enum-constrained; keyword classifier otherwise |
+| Planner relevance | **Narrow** the preferred-evidence list | May only select from the list; cannot touch `required`, cannot reach a tool |
+| Geospatial summary | Rephrase computed statistics | Given only the statistics; no other input exists |
+| Risk rationale | Phrase the engine's verdict | Rejected if it introduces a number or uses reserved official language; engine text stands |
+| Reporting narrative | Compose the answer | Numeric fidelity, official-language and absence-as-safety validators; two failures fall to template |
+
+`DOMAIN_MAP` and the evidence requirements are **tables**, and the evidence
+tables are read from `config/thresholds/*.yaml` rather than restated — so a
+factor added to a threshold set is planned for automatically and the Planner
+cannot drift out of step with what the engine will demand.
+
+### 11.4 Findings
+
+| ID | Finding |
+|---|---|
+| **F-21** | **Re-planning for an unfillable gap is an infinite-ish loop of identical requests.** The first live run re-planned twice for `official_warning_status` (no source at all) and `wind_speed` (tool already answered with stale data), re-issuing the same calls and inflating the evidence count 17 → 23 → 29 with duplicates. A gap is only worth re-planning if some tool yielding it is **available and not yet attempted**; `ValidationReport.actionable_gaps` now carries that, and an unfillable gap degrades the domain instead (`06` §3.8). |
+| **F-22** | **`07` §5 routes `BLOCKED` to `finalize`, which delivers the user nothing.** §8's degradation ladder requires BLOCKED to produce "no verdict, explicit statement of what could not be reached". Deviation recorded: BLOCKED routes to `report`, which composes the explanation over assessments that are all `INSUFFICIENT_EVIDENCE`. The grounding validators forbid it from asserting safety, so it explains without ever concluding. |
+| **F-23** | A time-independent question ("am I inside the EEZ?") legitimately resolves **no** time window, and the Planner correctly does not ask for one — but the analysis frame still needs an interval. `_window` defaults to the present; time-sensitive intents never reach it without a window because the Planner asks first. |
+| **F-25** | **Resolving O-1 did not unblock the demo, because `wind_speed` has no forecast source either.** CMEMS wind is an L4 *observation* product with no forecast horizon (F-11), so a query about tomorrow — the demo's own query — yields `STALE_DATA` and SAFETY still refuses, correctly, since wind is a measurement and does not cap. `03` §7 already names the answer: `get_weather` is specified as S-05 IMD (auth) with **S-11 NOAA as the designated fallback, still PROPOSED**. Building it is the one remaining thing between ORCA and an end-to-end safety verdict, and it needs no credentials. |
+| **F-24** | The chlorophyll local-median ratio was derived in the **CLI**, reaching into the CMEMS adapter. `agents/` may never do that, so the derivation moved into `get_chlorophyll` (`tools/` may import both `adapters/` and `geospatial/`). One code path now, and every consumer of the capability gets the same evidence. |
+
+### 11.5 Design decisions
+
+*Numbering note.* Session 2 had reused **D-13**, which session 1 already used for
+the CMEMS `403` decision, and its block then collided with session 3's. Resolved
+on merge: session 1 keeps D-1–D-13, session 2 shifted to **D-14–D-20**, session 3
+takes **D-21–D-25**. Cross-references were updated with them.
+
+**D-22 · The registry is the seam that keeps `agents/` away from `adapters/`.**
+It carries a CATALOGUE of pure metadata (name, args schema, evidence yielded) —
+all the Planner may see — plus callables bound by the composition root in
+`tools/live.py`. A test asserts the plan contains no URL, dataset id or
+credential string.
+
+**D-23 · A capability with no source is *declared*, not omitted.**
+`mark_unavailable` keeps the tool in the catalogue so the Planner still plans
+for it and the answer states what it could not check. This is what produces
+"nine tools exist, one is used, four are declared unavailable".
+
+**D-24 · Live objects travel in graph *config*, not graph *state*.**
+The registry, provider and budget are not serialisable and must not be
+checkpointed. `OrcaRuntime` moves through `config["configurable"]["orca"]`,
+which keeps state to plain data that can be replayed for audit.
+
+**D-25 · A branch that fails hard still appends an assessment.**
+A missing branch would stall the LangGraph superstep, so a failed domain appends
+`INSUFFICIENT_EVIDENCE` (or `UNKNOWN` for REGULATORY, which has its own
+vocabulary). The join count always matches the dispatch count.
+
+**D-26 · A missing authority check caps the verdict; a missing measurement still blocks it.**
+**Context.** O-1. `official_warning_status` was a required SAFETY factor with no
+reachable source, so SAFETY always returned `INSUFFICIENT_EVIDENCE` and every
+answer ended in `CANNOT_ADVISE` — including `16_DEMO...` §2 segment 6, which the
+demo spec calls "the differentiator".
+**Decision.** Threshold sets gain a `capping_factors` tier. A required factor
+listed there ceilings the verdict at a named band when missing, instead of
+refusing. `official_warning_status` caps at `marginal`.
+**Rationale.** An authority check is not a measurement. Without wave height or
+wind there is no sea state to assess and ORCA must refuse. Without a warning
+check there *is* an assessable sea state — what is missing is the authority that
+would have overridden it. Refusing outright withholds usable information;
+answering uncapped could say "favourable" while a cyclone warning stands. The
+cap is the narrow path between those.
+**Consequences.** ORCA can never say favourable without an authority check.
+Confidence is capped at medium, the gap is named in every answer, the rationale
+states that the verdict is a ceiling, and `Assessment.verdict_capped_by` records
+it. The reporting absence-guard treats a capped verdict as *not* assessed, so a
+narrative still cannot claim safety. Deviates from `12` §4.1 as written.
+**Reversal.** Delete the `capping_factors` block once IMD credentials exist.
+
+### 11.6 Deviations from the design documents
+
+| Document | Deviation | Reason |
+|---|---|---|
+| `07` §5 — `BLOCKED` → `finalize` | Routes to `report` instead | F-22; §8 requires BLOCKED to explain itself |
+| `07` §4 — `nodes/` one module per node | Grouped by stage (7 modules, 16 nodes) | A file holding three ten-line functions is harder to follow than one holding the stage |
+| `07` §14 — PostgreSQL checkpointer | `MemorySaver` in tests; no persistence yet | `09_DATABASE_SPEC.md` is not implemented; the interrupt/resume contract is exercised and survives a rebuilt graph |
+| `06` §4.7 — LLM re-request on an unsatisfied step | Not implemented | F-21 showed the deterministic widening already covers the cases we have; adding a model call to re-ask an unavailable source would be waste |
+| `07` §5 — separate `retrieve` dispatcher node | Dispatch is the conditional edge out of `plan` | Matches §5's own `add_conditional_edges("plan", dispatch_tools, ...)` |
+
+### 11.7 What the graph does that the vertical slice did not
+
+Running the same question through `cli.ask` rather than `cli.query`:
+
+* **The plan changes with the question.** "Is there a warning in force?" plans
+  **zero** tools of eleven and declares the one gap; "am I inside the EEZ?" plans
+  one; the fishing question plans six and declares five gaps.
+* **An unresolved location asks instead of assuming.** No retrieval happens.
+* **Domains fan out and rejoin** by `Send`, so only requested domains run.
+* **An official warning holds the answer at `human_review`** as a durable
+  interrupt; nothing is delivered until a decision is recorded, and the state
+  survives the process being rebuilt.
+
+### 11.8 What this layer still cannot do
+
+* **No conflict detection.** `conflict_resolve` is a declared seam that finds
+  nothing, because the tool layer selects one source per parameter. Real
+  cross-checking needs a second source per capability.
+* **No checkpointer persistence.** Interrupt/resume works in-process; surviving
+  a real restart needs `09_DATABASE_SPEC.md`.
+* **No `ECOLOGICAL` domain** and no P1 RAG, translation or route tools.
+* **The gazetteer is a 12-entry placeholder.** Anything outside it asks the user
+  rather than guessing, which is the right failure but a narrow one.
+* **No import-linter in CI.** The contracts are asserted by
+  `tests/unit/test_import_boundaries.py` (80 assertions) rather than at build
+  time.
+
+---
+
+## 12. Session 4 — the NOAA GFS wind forecast (S-11)
+
+Built because of F-25: without a wind *forecast* no SAFETY verdict was possible
+for any future window, so the demo's central segment could not run. This is the
+adapter `03` §7 already specified as the `get_weather` fallback, and it needs no
+credentials.
+
+### 12.1 Finding the endpoint — three dead ends
+
+`03` §7 named "NOAA" without an endpoint. The obvious routes are gone:
+
+| ID | Finding |
+|---|---|
+| **F-26** | **NOMADS OPeNDAP is retired** (NWS Service Change Notice 25-81). `nomads.ncep.noaa.gov/dods` answers **HTTP 200 with an HTML retirement notice**, so a client that trusted the status code would parse the notice as data. This is F-3's lesson again in a new form: a 200 is not a result. |
+| **F-27** | `coastwatch.pfeg.noaa.gov` and `upwell.pfeg.noaa.gov`, the long-standing CoastWatch ERDDAP hosts, both **time out**. Other NOAA ERDDAPs (`osmc`, `erddap.aoml`) are up but serve observing-network data, not NWP. |
+| **F-28** | The surviving NOMADS **GRIB filter** works, but serves GRIB2. Decoding it needs an `eccodes`/`cfgrib` binary dependency, and a GRIB2 decoder is an order of magnitude more work than D-1's Zarr reader (JPEG2000 and complex packing with spatial differencing). Rejected on both counts. |
+
+**Resolution.** PacIOOS (University of Hawaii, an IOOS regional association)
+republishes the NCEP GFS run over **ERDDAP griddap**, which ORCA already reads.
+Global 0.5°, hourly steps, **+164 h horizon** when measured on 2026-09-03.
+
+**D-27 · The originating authority and the distributor are both recorded.**
+The data is NOAA NCEP GFS; PacIOOS is the host. Provenance names NOAA as
+`source`/`organisation` and PacIOOS in `notes` and the licence reference, and
+never presents the redistributor as the authority. A system that cites
+authorities has to be exact about which one it is citing.
+
+### 12.2 What was built
+
+```
+backend/orca/adapters/
+├── erddap.py              188 lines  SHARED ERDDAP protocol (new)
+├── incois_erddap/client.py 101 lines  was 232 -- now only the INCOIS host
+└── noaa_gfs/                          client, bindings, adapter (S-11)
+```
+
+**D-28 · The ERDDAP protocol is shared; the host is not.**
+ERDDAP is a server product, not a source, and its quirks belong to the software:
+the selector characters the servlet container rejects (F-5), the errors returned
+under HTTP 200, the "unknown datasetID" body that means a dataset was unloaded
+(F-3). Those are now in `adapters/erddap.py` and cannot be fixed for one ERDDAP
+and not another. Base URL, TLS and dataset bindings stay per-host — INCOIS keeps
+its incomplete-chain workaround (F-1), GFS uses standard TLS. `incois_erddap`
+subclasses the shared client and keeps its public API, so its suite was
+unchanged and INCOIS returned an identical live value after the refactor.
+
+The adapter emits wind **components**; the kernel derives speed and direction
+with a recorded method (D-8), exactly as for CMEMS. GFS publishes no gust in
+this dataset, so `wind_gust` stays unavailable and is reported as not evaluated
+— never approximated from the mean wind.
+
+### 12.3 A gate that was judging the wrong thing
+
+| ID | Finding |
+|---|---|
+| **F-29** | **The validate gate ran before derivation, so it judged coverage against values the run had not computed yet.** Derivation lived in `geo_reason`, which runs *after* `validate`, so `wind_speed` was reported as a missing required input in the `ValidationReport` while the assessment immediately went on to use it. The audit artifact contradicted the answer. Not caught earlier because wind was genuinely missing until this session; the GFS forecast made the two disagree visibly. Fixed by deriving in `tool_exec`, where the values are retrieved: `geo_reason` now *reports* derivations rather than performing them, and every downstream consumer sees one set of values. |
+
+### 12.4 Result
+
+For the demo's own question, against live data:
+
+```
+tool_exec   get_weather (fallback)   satisfied     <- GFS served a future window
+validate    21 value(s); required gaps: official_warning_status
+assess_safety   SAFETY = MARGINAL (confidence medium)
+ANSWER [PROCEED_WITH_CAUTION]   disposition: AUTO_RELEASE
+```
+
+`16` §2 segment 3 wanted "one visible failure and one fallback" — the fallback is
+now real and is stated. **SAFETY produces a verdict for tomorrow**, which no
+combination of sources could do before.
+
+### 12.5 What this does not fix
+
+* **The demo still cannot show FAVOURABLE fishing beside MARGINAL safety**
+  (`16` §2 segment 6). Both domains currently read MARGINAL, driven by a
+  chlorophyll ratio of 1.026 — near the middle of its band. The *mechanism* for
+  disagreement is built and tested; whether the sea disagrees on demo day is not
+  ours to arrange. A recorded run at a location and date where the two genuinely
+  diverge is the honest way to show it, which is another argument for replay mode.
+* **`wind_gust` has no source.** GFS publishes none here; IMD would.
+* **Conflict detection (M-32) is still unbuilt**, though GFS now gives
+  `get_wave_conditions` a plausible second source for it.
+
+---
+
+## 13. Session 5 — making the data sources actually work
+
+A source audit rather than a feature: `scripts/check_sources.py` exercises every
+capability live and prints what each one actually did. Run it before believing
+any claim about what works.
+
+**Before:** 7 bound, 2 returning clean data, 4 declared unavailable.
+**After:** 9 bound, 8 returning data, 3 unavailable (all IMD) + 1 declared with
+no source (tide).
+
+### 13.1 PFZ is live — and the design's `RASTER_ONLY` branch was not needed
+
+`03` §S-06 had been PENDING VERIFICATION since the audit, because the original
+test network could not resolve `services.incois.gov.in`. That host still does not
+resolve; **`incois.gov.in/geoserver` does**, and serves 342 layers.
+
+WFS is 403, but **`GetFeatureInfo` returns real `MultiLineString` geometry**, so
+PFZ is a *vector* capability. `get_pfz` now answers the problem statement's first
+example query against the official product:
+
+```
+Where is the nearest PFZ today?
+  -> 45.22 km away, issued 2026-09-02
+  -> official INCOIS advisory, quoted not recomputed
+  -> distance_to_advisory_line v1.0
+```
+
+**D-29 · ORCA measures the distance; INCOIS owns the advisory.**
+`12` §5.3 reserves "PFZ" for the authoritative product. The distance is a
+*derived* value carrying a derivation record that names the official geometry it
+was measured against; ORCA never infers a PFZ from SST and chlorophyll, and its
+own productivity reasoning keeps a separate name.
+
+**Three outcomes, kept distinct.** Found; checked-and-none-in-range (`NO_DATA`, a
+result); outside the issue extent (`INSUFFICIENT_COVERAGE`, we did not look).
+`EvidencePool` gained PFZ status ingestion so the middle case can never read as
+the last (D-3). Kochi is currently the third case: today's issue starts at
+11.64 N and Kochi is at 9.93 N.
+
+| ID | Finding |
+|---|---|
+| **F-30** | The PFZ layer has **no time dimension**; the issue date is `Year` + `Julian_day` and must be converted. An old or undated advisory is flagged, never presented as today's. |
+| **F-31** | Today's issue does not reach Kochi. A fact about the issue, not the point. |
+| **F-32** | The GeoServer is intermittently 5xx. Retry handles it; a persistent failure degrades to a declared gap. |
+| **F-34** | **`distance_to_ring_km` closes the ring with `np.roll`, which is right for a polygon and wrong for a line.** On a PFZ advisory it invents a segment from the last vertex to the first, which can run hundreds of kilometres across open sea — a test point measured 5.6 km from the phantom segment and 105.6 km from the real line. Added `distance_to_line_km` for open polylines. |
+
+### 13.2 Tide — no source, and that is the answer
+
+The problem statement names tide. Every route was tried (`03` §17.3): UHSLC has a
+**Cochin gauge 4 km from the demo point** but its data ends 2026-07-31; CMEMS
+publishes a tide product for the Arctic only; the INCOIS `TideGauges` layer
+carries station locations, not levels; NOAA CO-OPS is US-only.
+
+**D-30 · A declared capability with no source, rather than a computed tide.**
+ORCA will not compute its own tide prediction: without published harmonic
+constituents that is an authoritative-looking invented number, which is the one
+thing this system exists not to do. `get_tides` is in the catalogue and is named
+in every answer that would have used it. Tidal *currents* are already covered —
+the CMEMS total-current product includes the tidal component.
+
+This is a deviation from `04`, which lists eleven P0 tools and omits tide even
+though the problem statement asks for it.
+
+### 13.3 Chlorophyll was never broken
+
+Investigated because it looked alarming in the audit: `PARTIAL` with
+`STALE_DATA` and `INSUFFICIENT_COVERAGE`. It returns 4.77 mg m-3 valid
+2026-09-01 with a local-median ratio of 1.026. The adapter flags a two-day-old
+composite as stale; `config/staleness.yaml` allows ocean colour four days, and
+the assessment uses it. That is the layering working: the adapter reports what
+the product is, the domain policy decides whether it is fit for purpose.
+
+### 13.4 Source reliability, as observed
+
+| Source | Observation |
+|---|---|
+| S-11 NOAA GFS (PacIOOS) | correct but **intermittently slow** (29 s, 88 s, one outright failure in ~10 calls). It is the *only* wind-forecast source, so when it fails the run falls back to a stale CMEMS observation and SAFETY loses a required input. A second NWP source would remove a single point of failure. |
+| S-06 INCOIS GeoServer | intermittent 503s between successful calls |
+| S-07 CMEMS | chlorophyll consistently slow (13–71 s); the 403 intermittency of §15.5 was not reproduced this session |
+
+### 13.5 Two bugs the live PFZ data exposed
+
+Wiring a real source in immediately surfaced two places where its values were
+being quietly discarded. Neither was visible while the source was unavailable.
+
+| ID | Finding |
+|---|---|
+| **F-35** | **`FISHING_SUITABILITY` did not accept `BULLETIN_PERIOD` as primary evidence**, so the INCOIS PFZ advisory — the most authoritative fishing input ORCA has — was downgraded to `REPRESENTATIVENESS_MISMATCH` and a *derived* chlorophyll ratio drove the verdict instead. Backwards. `DOMAIN_ACCEPTS` now admits bulletins for fishing. |
+| **F-36** | **Presence-based factors other than `official_warning_status` contributed nothing at all.** The engine built evidence and a driver for warnings and then `continue`d, so a checked `pfz_advisory` or `lightning` produced no evidence, no driver and no contribution to sufficiency. Replaced with a `PRESENCE_SEMANTICS` table. |
+
+**D-31 · Presence and absence are not symmetric, and the table says so.**
+A warning or a lightning strike in force is adverse and its confirmed absence is
+reassuring, so both directions band. A PFZ advisory nearby is a positive signal,
+but its absence carries **no** verdict weight: INCOIS issues advisories where
+conditions warrant, not everywhere every day, so "no advisory here today" is an
+editorial fact about the bulletin, not evidence that fishing is poor. Banding
+the absence would manufacture an unfavourable finding out of an issuing
+decision. The checked absence is still recorded as evidence, so the answer can
+say it was looked for.
+
+---
+
+## 14. Where the Project Stands Against the Problem Statement
+
+Recorded because the internal roadmap and the problem statement do not weight
+the same things, and the difference is a scoring risk rather than a matter of
+taste. `17_IMPLEMENTATION_ROADMAP.md` §4 lists **route optimisation** and
+**more than two languages** as explicit MVP *non-requirements*; the problem
+statement names both. That scoping was defensible for a vertical slice. As a
+submission strategy it needs a deliberate decision, not inheritance.
+
+### 14.1 The ten named platform capabilities
+
+| # | Capability | State |
+|---|---|---|
+| 1 | Understand natural-language intent | strong |
+| 2 | **Detect the language and reply in it — Indian regional** | **absent** |
+| 3 | **Contextual multi-turn conversation** | **~5 %** — `session_context` is read, never written |
+| 4 | Autonomously discover, retrieve, integrate datasets | strong — five sources live |
+| 5 | Spatial / temporal / contextual correlation | strong |
+| 6 | Explainable recommendations **with maps, charts, geo-visualisation** | evidence yes; **visuals absent** |
+| 7 | **Proactive hazard alerts** | **absent** (and 3 of 4 inputs are IMD-blocked) |
+| 8 | **Geofencing notifications** | containment yes; **notification absent** |
+| 9 | **Route optimisation / safe navigation** | **absent** |
+| 10 | Recommendations with supporting evidence and reasoning | the strongest thing ORCA has |
+
+Four strong, one half, five absent — roughly **45–50 % of the named
+capabilities**, and the absences are concentrated in the *conversational* and
+*presentational* half of the brief rather than the reasoning half.
+
+### 14.2 The eight example queries
+
+| Query | Answerable |
+|---|---|
+| Nearest PFZ today | **yes** (session 5) |
+| Safe to venture tomorrow morning | **yes** (session 4) |
+| Tide, weather and sea conditions | partial — **no tide** (§13.2) |
+| Lightning or cyclone alerts | no — IMD |
+| Regions with high chlorophyll and favourable SST | partial — point, not region; no map |
+| Safest route | no |
+| Why has fish productivity declined | no — no historical comparison, no RAG |
+| Zones to avoid (hazard or geofencing) | partial — containment yes, notification no |
+
+**Two of eight fully, three partially.** At the start of this conversation it
+was zero of eight, so the direction is right; the count is what matters for a
+submission.
+
+### 14.3 The agent-count question, which we should expect to be asked
+
+The problem statement *encourages* nine named agents: planning, data discovery,
+**weather intelligence**, **ocean analytics**, geospatial reasoning, risk
+assessment, **visualisation**, reporting, **user interaction**. ORCA has five,
+deliberately: `06` §1 argues an agent exists only where judgement under
+uncertainty is required, and that alignment, unit conversion, point-in-polygon
+and threshold evaluation are kernel functions with unit tests rather than
+"agents".
+
+That argument is sound and the design should stand. But `16` §6's twenty
+prepared judge objections **do not include it**, and "why five when the brief
+says nine?" is an obvious question. It needs an answer written down: the four
+missing names are *functions ORCA performs*, and three of them (weather
+intelligence, ocean analytics, visualisation) are deterministic — making them
+agents would add ceremony without adding judgement.
+
+---
+
+## 15. Decision Index
+
+Every ADR-style decision in this document, in one place. The IDs collided twice when sessions ran in parallel (§10.2, §11.5); this table is the authority on which is which.
+
+| ID | Decision | Where |
+|---|---|---|
+| **D-1** | A focused Zarr v2 reader instead of xarray + zarr + fsspec | §4 |
+| **D-2** | TLS: OS trust store, then a generated bundle; never disable verification | §4 |
+| **D-3** | Presence-based factors come from the tool *outcome*, not a sentinel value | §4 |
+| **D-4** | Time-aware source selection, not first-match fallback | §4 |
+| **D-5** | Ageing is asymmetric and configured per parameter | §4 |
+| **D-6** | Chlorophyll is expressed comparatively, never absolutely | §4 |
+| **D-7** | Units are read from the source and converted explicitly | §4 |
+| **D-8** | Derivations belong to the kernel, never to adapters | §4 |
+| **D-9** | Search outward for the nearest valid ocean cell | §4 |
+| **D-10** | Structural guards in the schema, not conventions in prose | §4 |
+| **D-11** | Gaps are scoped per domain | §4 |
+| **D-12** | Upstream fixtures are recorded, never hand-authored | §4 |
+| **D-13** | `403` is a failure, never "no data" | §4 |
+| **D-14** | A versioned local snapshot, not a query-time WFS call | §10.3 |
+| **D-15** | Coverage is a declared region, and outside it the answer is refusal | §10.3 |
+| **D-16** | Boundary types are evaluated independently; the worst governs | §10.3 |
+| **D-17** | A layer with no feature for this jurisdiction cannot say "outside" | §10.3 |
+| **D-18** | The geometry is a fact; what it means is a legal judgement, and they live apart | §10.3 |
+| **D-19** | An unevaluated boundary type is named in every answer | §10.3 |
+| **D-20** | A regulatory constraint outranks a safety refusal in the headline | §10.3 |
+| **D-21** | No LLM is required, and the deterministic path is first-class | §10.3 |
+| **D-22** | The registry is the seam that keeps `agents/` away from `adapters/` | §11.5 |
+| **D-23** | A capability with no source is *declared*, not omitted | §11.5 |
+| **D-24** | Live objects travel in graph *config*, not graph *state* | §11.5 |
+| **D-25** | A branch that fails hard still appends an assessment | §11.5 |
+| **D-26** | A missing authority check caps the verdict; a missing measurement still blocks it | §11.5 |
+| **D-27** | The originating authority and the distributor are both recorded | §12 |
+| **D-28** | The ERDDAP protocol is shared; the host is not | §12 |
+| **D-29** | ORCA measures the distance; INCOIS owns the advisory | §13 |
+| **D-30** | A declared capability with no source, rather than a computed tide | §13 |
+| **D-31** | Presence and absence are not symmetric, and the table says so | §13 |

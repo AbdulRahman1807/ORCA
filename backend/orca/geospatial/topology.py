@@ -111,6 +111,40 @@ def distance_to_ring_km(lon: float, lat: float, ring: np.ndarray) -> float:
     return haversine_km(lat, lon, near_lat, near_lon)
 
 
+def distance_to_line_km(lon: float, lat: float, line: np.ndarray) -> float:
+    """Geodesic distance from a point to an OPEN polyline.
+
+    `distance_to_ring_km` closes the ring with `np.roll`, which is right for a
+    polygon boundary and wrong for a line: it invents a segment from the last
+    vertex back to the first. A PFZ advisory is an open line, and that phantom
+    segment can run hundreds of kilometres across open sea, so a point near it
+    would be reported as near an advisory that does not exist there.
+    """
+    if line.shape[0] < 2:
+        return float("inf")
+    kx = _KX_KM_PER_DEG * math.cos(math.radians(lat))
+    ky = _KY_KM_PER_DEG
+
+    px = (line[:-1, 0] - lon) * kx
+    py = (line[:-1, 1] - lat) * ky
+    qx = (line[1:, 0] - lon) * kx
+    qy = (line[1:, 1] - lat) * ky
+
+    dx = qx - px
+    dy = qy - py
+    seg_len2 = dx * dx + dy * dy
+    with np.errstate(invalid="ignore", divide="ignore"):
+        t = np.where(seg_len2 > 0.0, -(px * dx + py * dy) / seg_len2, 0.0)
+    t = np.clip(np.nan_to_num(t), 0.0, 1.0)
+    cx = px + t * dx
+    cy = py + t * dy
+    i = int(np.argmin(cx * cx + cy * cy))
+
+    near_lon = lon + float(cx[i]) / kx if kx != 0 else lon
+    near_lat = lat + float(cy[i]) / ky
+    return haversine_km(lat, lon, near_lat, near_lon)
+
+
 @dataclass(slots=True)
 class FeatureIndex:
     """Flat, immutable geometry for one boundary layer.

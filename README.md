@@ -9,34 +9,56 @@ reasons across them, and says plainly what it does not know.
 ## Status
 
 Design documents 01–22 are complete (`0*.md`, `1*.md`, `2*.md`).
-Implementation is at **Phase 1–6 partial — ~55% of backend logic**.
+Implementation is at **Phase 1–6 partial — ~70% of backend logic**.
 
 | Component | State |
 |---|---|
 | Canonical schema (`schemas/`) | ✅ provenance invariant, error taxonomy, assessment types |
 | INCOIS ERDDAP adapter (`adapters/incois_erddap/`) | ✅ live, verified |
 | CMEMS adapter (`adapters/cmems/`) | ✅ live — waves, currents, wind, SST, chlorophyll |
+| NOAA GFS adapter (`adapters/noaa_gfs/`) | ✅ live — the wind **forecast** source (S-11) |
+| INCOIS GeoServer adapter (`adapters/incois_wms/`) | ✅ live — official **PFZ advisory**, vector (S-06) |
 | MarineRegions adapter (`adapters/marineregions/`) | ✅ live — versioned EEZ / 12 NM / 24 NM / internal-waters snapshot |
 | Cross-source fallback | ✅ time-aware source selection, recorded in provenance |
-| Capability tools (`tools/`) | ✅ 7 of 11 P0 |
+| Capability tools (`tools/`) | ✅ 9 of 12 bound; 8 return data. Run `scripts/check_sources.py` |
+| Sources reached live in one run | ✅ 5 — INCOIS ERDDAP, INCOIS GeoServer, CMEMS, MarineRegions, NOAA |
 | Geospatial kernel (`geospatial/`) | ◐ geodesy, temporal alignment, derivations, point-in-polygon |
 | Assessment engine (`assessment/`) | ✅ thresholds, sufficiency, verdicts, confidence, synthesis, REGULATORY |
-| Vertical-slice CLI (`cli/`) | ✅ runnable |
+| LLM provider (`llm/`) | ✅ provider-agnostic; **ORCA runs with no model configured** |
+| Agents (`agents/`) | ✅ all five — Planner, Discovery, Geospatial, Risk, Reporting |
+| LangGraph orchestration (`graph/`) | ✅ end to end, incl. durable human-review interrupt |
+| CLI (`cli/`) | ✅ `ask` (agent-planned) and `query` (fixed slice) |
 | Other adapters (IMD, INCOIS WMS) | ⬜ not started — credential / network blocked |
-| Agents, LangGraph, RAG, API, frontend | ⬜ not started |
+| RAG, API, frontend | ⬜ not started |
 
 ## Quick start
 
 ```bash
 python3 -m venv .venv
-./.venv/bin/pip install pydantic httpx certifi truststore numcodecs numpy pyyaml pytest
+./.venv/bin/pip install pydantic httpx certifi truststore numcodecs numpy pyyaml \
+                        pytest langgraph
 
-./.venv/bin/python -m pytest tests -q             # 122 offline tests
+./.venv/bin/python -m pytest tests -q             # 289 offline tests, no network, no LLM
 ./.venv/bin/python -m scripts.capture_boundaries  # boundary snapshot (~35 s, 7.2 MB)
-./.venv/bin/python -m backend.orca.cli.query      # the vertical slice
+./.venv/bin/python scripts/check_sources.py       # live source audit
+
+# ask a question -- a Planner decides what to retrieve
+./.venv/bin/python -m backend.orca.cli.ask "is it good for fishing near Kochi tomorrow morning?"
+./.venv/bin/python -m backend.orca.cli.ask "am I inside the Indian EEZ near Kochi?"
+./.venv/bin/python -m backend.orca.cli.ask "is there a warning in force right now?"
 ```
 
-`orca-query` accepts `--lat --lon --label --when`.
+The PLAN block differs between those three. The fishing question plans six tools and
+declares five capability gaps; the boundary question plans one; the warning lookup plans
+**none** — twelve capabilities exist, its only source needs credentials, and the answer
+says so rather than substituting something else.
+
+**No LLM is required.** With `ORCA_LLM_PROVIDER` unset (see `.env.example`) ORCA plans
+from deterministic tables and answers from a grounded template. Configuring a model adds
+fluency; validators stop it changing a number or a verdict, and the tests assert that.
+
+`orca-ask` accepts `--lat --lon --when --no-trace`; `orca-query`, the fixed vertical
+slice retained for comparison, accepts `--lat --lon --label --when`.
 
 `data/boundaries/` is git-ignored, so run `capture_boundaries` once after cloning.
 Without it `get_maritime_boundaries` returns `DATASET_UNAVAILABLE` naming the script —
@@ -61,9 +83,11 @@ the correct degradation, not a failure.
    zone or a fishing regulation.
 7. Synthesises a headline that names the limiting factor across domains.
 
-Today it produces a live `FISHING_SUITABILITY = FAVOURABLE` verdict from current CMEMS
-chlorophyll, while `SAFETY` correctly returns `INSUFFICIENT_EVIDENCE` — an official
-warning has no substitute, and none is reachable without IMD credentials.
+With current chlorophyll available it produces a live `FISHING_SUITABILITY = FAVOURABLE`
+verdict; when CMEMS denies that product it falls back to the INCOIS archive, flags it
+stale and returns `INSUFFICIENT_EVIDENCE` instead of guessing. `SAFETY` returns
+`INSUFFICIENT_EVIDENCE` either way — an official warning has no substitute, and none is
+reachable without IMD credentials.
 
 It also produces a live `REGULATORY` status. A position 60 km inside the Sri Lankan EEZ
 returns `RESTRICTED` — operating there needs that state's authorisation — and says so
@@ -91,10 +115,11 @@ and contextualises the authority rather than competing with it.
 the Argo analysis products (`incois_argo_10d_VAM`, ends 2026-07-30) carry recent data,
 and they are 10-day subsurface means. There is **no current chlorophyll or SST** here.
 
-**CMEMS** — the audit recorded this as AUTH REQUIRED. The ARCO (Zarr) store in fact
-served wave and current data **without credentials**, and those products are forecasts
-covering tomorrow. This is the first source able to answer a question about the future.
-Wind is available too, but as an observation product with no forecast horizon.
+**CMEMS** — the ARCO (Zarr) store serves **wave and current forecasts without
+credentials**, covering tomorrow. This is the only source able to answer a question about
+the future. The observation products (SST, chlorophyll, wind) served unauthenticated
+reads initially and later returned `AccessDenied`, so they are **not reliable without
+credentials** — obtaining them is a priority. See `03_DATA_SOURCE_MATRIX.md` §15.5.
 
 **MarineRegions** — reachable and unauthenticated all the way to feature geometry.
 EEZ v12, territorial seas / contiguous zones / internal waters v4, all 2023 releases.
@@ -110,15 +135,27 @@ bands rather than nested zones:
 ## Layering rule
 
 ```
-agents/  →  tools/  →  adapters/  →  external source
+graph/  →  agents/  →  tools/  →  adapters/  →  external source
 ```
 
 Only `adapters/` knows URLs, credentials and provider query syntax. Agents see capability
-contracts and canonical objects, never a provider API.
+contracts and canonical objects, never a provider API. The seam is `tools/registry.py`:
+it hands agents a catalogue of names, argument schemas and declared evidence, while the
+callables behind those names are bound by the composition root in `tools/live.py`.
 
-`assessment/` sits outside that chain and does not import from `adapters/`. Where the two
-share policy — boundary geometry versus what containment *means* — each reads its own
-section of the same configuration file.
+Two further contracts matter as much:
+
+* **`geospatial/` and `assessment/` never import `llm/`.** Every number and every verdict
+  is computed deterministically. A model can phrase a conclusion; it cannot reach one.
+* **`schemas/` imports nothing from ORCA.** It is a leaf.
+
+`assessment/` also sits outside the retrieval chain and does not import from `adapters/`.
+Where the two share policy — boundary geometry versus what containment *means* — each
+reads its own section of the same configuration file.
+
+These are asserted by `tests/unit/test_import_boundaries.py` (80 assertions), which also
+fails the build on a URL literal appearing anywhere above `adapters/`. An import-linter
+configuration should express them in CI; until then the tests are the contract.
 
 ## Documents
 
