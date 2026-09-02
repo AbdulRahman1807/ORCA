@@ -17,10 +17,11 @@ Implementation is at **Phase 1–6 partial — ~70% of backend logic**.
 | INCOIS ERDDAP adapter (`adapters/incois_erddap/`) | ✅ live, verified |
 | CMEMS adapter (`adapters/cmems/`) | ✅ live — waves, currents, wind, SST, chlorophyll |
 | NOAA GFS adapter (`adapters/noaa_gfs/`) | ✅ live — the wind **forecast** source (S-11) |
+| INCOIS GeoServer adapter (`adapters/incois_wms/`) | ✅ live — official **PFZ advisory**, vector (S-06) |
 | MarineRegions adapter (`adapters/marineregions/`) | ✅ live — versioned EEZ / 12 NM / 24 NM / internal-waters snapshot |
 | Cross-source fallback | ✅ time-aware source selection, recorded in provenance |
-| Capability tools (`tools/`) | ✅ 7 of 11 P0 |
-| Sources reached live in one run | ✅ 4 — INCOIS, CMEMS, MarineRegions, NOAA |
+| Capability tools (`tools/`) | ✅ 9 of 12 bound; 8 return data. Run `scripts/check_sources.py` |
+| Sources reached live in one run | ✅ 5 — INCOIS ERDDAP, INCOIS GeoServer, CMEMS, MarineRegions, NOAA |
 | Geospatial kernel (`geospatial/`) | ◐ geodesy, temporal alignment, derivations, point-in-polygon |
 | Assessment engine (`assessment/`) | ✅ thresholds, sufficiency, verdicts, confidence, synthesis, REGULATORY |
 | LLM provider (`llm/`) | ✅ provider-agnostic; **ORCA runs with no model configured** |
@@ -37,8 +38,9 @@ python3 -m venv .venv
 ./.venv/bin/pip install pydantic httpx certifi truststore numcodecs numpy pyyaml \
                         pytest langgraph
 
-./.venv/bin/python -m pytest tests -q             # 248 offline tests, no network, no LLM
+./.venv/bin/python -m pytest tests -q             # 289 offline tests, no network, no LLM
 ./.venv/bin/python -m scripts.capture_boundaries  # boundary snapshot (~35 s, 7.2 MB)
+./.venv/bin/python scripts/check_sources.py       # live source audit
 
 # ask a question -- a Planner decides what to retrieve
 ./.venv/bin/python -m backend.orca.cli.ask "is it good for fishing near Kochi tomorrow morning?"
@@ -48,7 +50,7 @@ python3 -m venv .venv
 
 The PLAN block differs between those three. The fishing question plans six tools and
 declares five capability gaps; the boundary question plans one; the warning lookup plans
-**none** — eleven capabilities exist, its only source needs credentials, and the answer
+**none** — twelve capabilities exist, its only source needs credentials, and the answer
 says so rather than substituting something else.
 
 **No LLM is required.** With `ORCA_LLM_PROVIDER` unset (see `.env.example`) ORCA plans

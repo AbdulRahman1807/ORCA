@@ -21,6 +21,7 @@ from zoneinfo import ZoneInfo
 from ..adapters.cmems.adapter import CmemsAdapter
 from ..adapters.incois_erddap.adapter import IncoisErddapAdapter
 from ..adapters.marineregions.adapter import MarineRegionsAdapter
+from ..adapters.incois_wms.adapter import IncoisPfzAdapter
 from ..adapters.noaa_gfs.adapter import NoaaGfsAdapter
 from ..graph.build import build_graph
 from ..graph.runtime import OrcaRuntime
@@ -69,9 +70,10 @@ def run(query: str, *, lat: float | None, lon: float | None,
             "end_time": (when + timedelta(hours=4)).isoformat()}
 
     with IncoisErddapAdapter() as erddap, CmemsAdapter() as cmems, \
-            MarineRegionsAdapter() as boundaries, NoaaGfsAdapter() as gfs:
+            MarineRegionsAdapter() as boundaries, NoaaGfsAdapter() as gfs, \
+            IncoisPfzAdapter() as pfz:
         registry = build_live_registry(erddap=erddap, cmems=cmems,
-                                       boundaries=boundaries, gfs=gfs)
+                                       boundaries=boundaries, gfs=gfs, pfz=pfz)
         rt = OrcaRuntime(registry=registry, llm=llm)
         graph = build_graph()
         final = graph.invoke(state, config={"configurable": rt.configurable()})
@@ -119,9 +121,16 @@ def run(query: str, *, lat: float | None, lon: float | None,
               f"confidence={a.confidence.value}")
         for d in a.drivers:
             mark = ">>" if d.contribution == "limiting" else "  "
-            val = ("inside" if d.value is True else "outside" if d.value is False
-                   else f"{d.value:g} {d.unit or ''}".strip()
-                   if d.value is not None else "-")
+            if isinstance(d.value, bool):
+                # A boolean means containment for a boundary and presence for
+                # an advisory or a warning; they do not read the same way.
+                pair = (("inside", "outside") if "boundary" in d.factor
+                        or d.factor.isupper() else ("present", "absent"))
+                val = pair[0] if d.value else pair[1]
+            elif d.value is not None:
+                val = f"{d.value:g} {d.unit or ''}".strip()
+            else:
+                val = "-"
             print(f"      {mark} {d.factor:30} {val:14} {d.band or ''}")
         for n in a.not_evaluated:
             print(f"         not evaluated: {n.factor:26} {n.reason}")

@@ -298,3 +298,58 @@ class TestOfficialWarningGoverns:
     def test_confidence_is_never_high_on_a_capped_verdict(self):
         a = safety(self._unchecked_warning_pool())
         assert a.confidence is not Confidence.HIGH
+
+
+class TestPresenceBasedFactorsContribute:
+    """Presence factors other than warnings were silently contributing nothing."""
+
+    def _pool_with_pfz(self, active, issued="2026-09-02"):
+        pool = pool_with(
+            make_env("get_chlorophyll",
+                     {"chlorophyll_ratio_to_local_median": (1.5, "ratio")},
+                     rep=R.DAILY_COMPOSITE))
+        pool.status["pfz_advisory"] = {"active": active, "checked": True,
+                                       "issued": issued,
+                                       "provenance_id": "pv-pfz-1"}
+        return pool
+
+    def test_an_advisory_in_force_is_a_favourable_driver(self):
+        a = fishing(self._pool_with_pfz(True))
+        driver = next(d for d in a.drivers if d.factor == "pfz_advisory")
+        assert driver.band == "favourable"
+        assert driver.value is True
+
+    def test_the_absence_of_an_advisory_carries_no_verdict_weight(self):
+        """INCOIS issues advisories where conditions warrant, not everywhere.
+        'No advisory here today' is not evidence that fishing is poor."""
+        a = fishing(self._pool_with_pfz(False))
+        assert not any(d.factor == "pfz_advisory" for d in a.drivers)
+
+    def test_a_checked_absence_is_still_recorded_as_evidence(self):
+        res = assess_domain(Domain.FISHING_SUITABILITY, self._pool_with_pfz(False),
+                            window_start=WIN_START, window_end=WIN_END)
+        statements = [e.statement for e in res.evidence
+                      if e.parameter == "pfz_advisory"]
+        assert statements and "no INCOIS" in statements[0]
+
+    def test_an_unchecked_advisory_is_not_evidence_of_absence(self):
+        pool = pool_with(make_env("get_chlorophyll",
+                                  {"chlorophyll_ratio_to_local_median": (1.5, "ratio")},
+                                  rep=R.DAILY_COMPOSITE))
+        a = fishing(pool)          # status never set
+        assert not any(d.factor == "pfz_advisory" for d in a.drivers)
+        assert "pfz_advisory" in {n.factor for n in a.not_evaluated}
+
+
+class TestBulletinsArePrimaryEvidenceForFishing:
+    def test_a_pfz_bulletin_is_not_downgraded_to_context(self):
+        """The official advisory must not be outranked by a derived ratio."""
+        from backend.orca.geospatial.temporal import DOMAIN_ACCEPTS
+        assert R.BULLETIN_PERIOD in DOMAIN_ACCEPTS[Domain.FISHING_SUITABILITY]
+
+    def test_pfz_distance_from_a_bulletin_reaches_the_drivers(self):
+        pool = pool_with(make_env("get_pfz", {"pfz_distance_km": (0.5, "km")},
+                                  rep=R.BULLETIN_PERIOD,
+                                  kind=ValueKind.OBSERVED))
+        a = fishing(pool)
+        assert any(d.factor == "pfz_distance_km" for d in a.drivers)

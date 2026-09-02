@@ -41,6 +41,20 @@ FACTOR_SOURCES: dict[str, tuple[str, Callable[[float], float]]] = {
 #: Factors that are presence-based rather than numeric.
 NON_NUMERIC_FACTORS = frozenset({"official_warning_status", "pfz_advisory", "lightning"})
 
+#: What the PRESENCE and the ABSENCE of each presence-based factor mean.
+#:
+#: The asymmetry is the point. A warning or a lightning strike in force is
+#: adverse, and its confirmed absence is reassuring, so both directions band.
+#: A PFZ advisory nearby is a positive signal, but its absence says nothing --
+#: INCOIS issues advisories where conditions warrant, not everywhere every day,
+#: so "no advisory here today" is not evidence that fishing is poor. Banding the
+#: absence would invent an unfavourable finding out of an editorial decision.
+PRESENCE_SEMANTICS: dict[str, dict[str, str | None]] = {
+    "official_warning_status": {"present": "unsafe", "absent": "favourable"},
+    "lightning": {"present": "unsafe", "absent": "favourable"},
+    "pfz_advisory": {"present": "favourable", "absent": None},
+}
+
 DOMAIN_THRESHOLD_SET = {
     Domain.SAFETY: "small_craft_v0.1",
     Domain.FISHING_SUITABILITY: "fishing_v0.1",
@@ -118,6 +132,9 @@ class EvidencePool:
                 detail=err.detail[:160] or None, tool=env.tool))
 
     def _ingest_status(self, env: OrcaEnvelope) -> None:
+        if env.tool == "get_pfz":
+            self._ingest_pfz_status(env)
+            return
         if env.tool != "get_marine_warnings":
             return
         codes = set(env.codes())
@@ -138,6 +155,25 @@ class EvidencePool:
         # Any other outcome (AUTH_REQUIRED, SOURCE_UNAVAILABLE) leaves the status
         # unset, so the factor stays unsatisfied and no safety verdict is issued.
 
+    def _ingest_pfz_status(self, env: OrcaEnvelope) -> None:
+        """`pfz_advisory` is presence-based: its meaning is the tool OUTCOME.
+
+        "checked, none in force nearby" is a result; "could not check" is not.
+        Only the former sets the status, so an unreachable advisory service can
+        never read as an absence of advisories (D-3).
+        """
+        quality = env.quality or {}
+        if not quality.get("advisory_checked"):
+            return
+        self.status["pfz_advisory"] = {
+            "active": bool(quality.get("advisory_present")),
+            "checked": True,
+            "issued": quality.get("issued"),
+            "sector": quality.get("sector"),
+            "provenance_id": (env.provenance[0].provenance_id
+                              if env.provenance else None),
+        }
+
     def add_gap(self, factor: str, reason: str, detail: str | None = None,
                 tool: str | None = None) -> None:
         self.gaps.append(NotEvaluated(factor=factor, reason=reason,
@@ -156,6 +192,23 @@ class EvidencePool:
 class DomainResult:
     assessment: Assessment
     evidence: list[Evidence]
+
+
+def _presence_statement(factor: str, active: bool, status: dict) -> str:
+    if factor == "official_warning_status":
+        return ("an official marine warning is in force" if active else
+                "no official marine warning is in force for this area and time")
+    if factor == "pfz_advisory":
+        if not active:
+            return ("no INCOIS Potential Fishing Zone advisory is in force "
+                    "within the search radius")
+        issued = status.get("issued")
+        return ("an INCOIS Potential Fishing Zone advisory is in force nearby"
+                + (f", issued {issued}" if issued else ""))
+    if factor == "lightning":
+        return ("lightning activity was detected" if active else
+                "no lightning activity was detected")
+    return f"{factor} = {active}"
 
 
 def _param_of(factor: str) -> str:
@@ -209,26 +262,31 @@ def assess_domain(domain: Domain, pool: EvidencePool, *,
                 continue
             if factor == "official_warning_status":
                 warning_status = st
-                eid = _new_id("ev")
-                active = bool(st.get("active"))
-                evidence.append(Evidence(
-                    evidence_id=eid, domain=domain,
-                    statement=("an official marine warning is in force"
-                               if active else
-                               "no official marine warning is in force for this "
-                               "area and time"),
-                    parameter="official_warning_status", value=active, unit=None,
-                    value_kind=ValueKind.OBSERVED,
-                    provenance_id=st.get("provenance_id") or "pv-unknown",
-                    supports=[f"{set_id}:official_warning_status"],
-                    weight="primary"))
-                drivers.append(Driver(
-                    factor=factor, value=active, band=("unsafe" if active
-                                                       else "favourable"),
-                    threshold_id=f"{set_id}:{factor}", evidence_id=eid,
-                    contribution="supporting"))
+            active = bool(st.get("active"))
+            semantics = PRESENCE_SEMANTICS.get(factor, {})
+            band = semantics.get("present" if active else "absent")
+
+            eid = _new_id("ev")
+            evidence.append(Evidence(
+                evidence_id=eid, domain=domain,
+                statement=_presence_statement(factor, active, st),
+                parameter=factor, value=active, unit=None,
+                value_kind=ValueKind.OBSERVED,
+                provenance_id=st.get("provenance_id") or "pv-unknown",
+                supports=[f"{set_id}:{factor}"],
+                weight="primary" if band else "context"))
+
+            if band is None:
+                # Checked, but its absence carries no verdict weight. Recorded
+                # as evidence so the answer can say it was checked.
+                continue
+            drivers.append(Driver(
+                factor=factor, value=active, band=band,
+                threshold_id=f"{set_id}:{factor}", evidence_id=eid,
+                contribution="supporting"))
+            if factor in tset.required_factors:
                 usable_required.add(factor)
-                usable_count += 1
+            usable_count += 1
             continue
 
         param, transform = FACTOR_SOURCES.get(factor, (factor, lambda v: v))

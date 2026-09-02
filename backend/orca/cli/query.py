@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from ..adapters.cmems.adapter import CmemsAdapter
 from ..adapters.incois_erddap.adapter import IncoisErddapAdapter
 from ..adapters.marineregions.adapter import MarineRegionsAdapter
+from ..adapters.incois_wms.adapter import IncoisPfzAdapter
 from ..adapters.noaa_gfs.adapter import NoaaGfsAdapter
 from ..assessment.engine import EvidencePool, assess_domain
 from ..assessment.regulatory import assess_regulatory
@@ -24,6 +25,7 @@ from ..schemas.enums import Domain, Verdict
 from ..tools.boundaries import get_maritime_boundaries
 from ..tools.marine import get_currents, get_wave_conditions, get_weather
 from ..tools.ocean import get_chlorophyll, get_ocean_observations, get_sst
+from ..tools.pfz import get_pfz
 
 IST = ZoneInfo("Asia/Kolkata")
 BAR = "=" * 78
@@ -35,7 +37,6 @@ UNBUILT = {
     "official_warning_status": ("get_marine_warnings", "IMD credentials not granted"),
     "lightning": ("get_lightning", "IMD credentials not granted"),
     "cyclone_distance_km": ("get_cyclone_track", "IMD credentials not granted"),
-    "pfz_advisory": ("get_pfz", "INCOIS WMS pending network-independent verification"),
 }
 
 
@@ -62,7 +63,7 @@ def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
           f"{boundary_env.source_resolution.actual_source or '-'}  [{codes}]")
 
     with IncoisErddapAdapter() as erddap, CmemsAdapter() as cmems, \
-            NoaaGfsAdapter() as gfs:
+            NoaaGfsAdapter() as gfs, IncoisPfzAdapter() as pfz:
         calls = [
             ("get_wave_conditions", lambda: get_wave_conditions(lat, lon, when,
                                                                 adapter=cmems)),
@@ -74,6 +75,7 @@ def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
             ("get_sst", lambda: get_sst(lat, lon, when, adapter=erddap, cmems=cmems)),
             ("get_chlorophyll", lambda: get_chlorophyll(lat, lon, when, adapter=erddap,
                                                         cmems=cmems)),
+            ("get_pfz", lambda: get_pfz(lat, lon, when, adapter=pfz)),
         ]
         for name, call in calls:
             env = call()
@@ -158,8 +160,11 @@ def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
         print(f"      thresholds  {a.threshold_set}  [{a.threshold_set_status}]")
         for d in a.drivers:
             mark = ">>" if d.contribution == "limiting" else "  "
-            if isinstance(d.value, bool):        # a containment, not a magnitude
-                val = "inside" if d.value else "outside"
+            if isinstance(d.value, bool):
+                # Containment for a boundary, presence for an advisory.
+                pair = (("inside", "outside") if "boundary" in d.factor
+                        or d.factor.isupper() else ("present", "absent"))
+                val = pair[0] if d.value else pair[1]
             elif d.value is not None:
                 val = f"{d.value:g} {d.unit or ''}".strip()
             else:

@@ -1,13 +1,16 @@
 # ORCA — Implementation Log
 
 **Session:** 2026-09-02 · **Phase:** design set → Phase 1–6 partial
-**State at end of session:** ~70% of backend logic · 8,769 lines implementation ·
-2,140 lines tests · 248 tests passing (0.9 s, all offline)
+**State at end of session:** ~70% of the MVP backend · 10,005 lines implementation ·
+2,591 lines tests · **289 tests passing** (1.0 s, all offline, no LLM)
 
-*Session 2 added the MarineRegions boundary adapter and the REGULATORY domain
-(§10). Session 3 added the five agents, the LangGraph orchestration and the LLM
-provider abstraction (§11). Everything above §10 describes the state after
-session 1 and is still current except where §10 and §11 say otherwise.*
+*Read §§10–13 for what came after session 1.* Session 2 added the MarineRegions
+boundary adapter and the REGULATORY domain (§10). Session 3 added the five
+agents, the LangGraph orchestration and the LLM provider abstraction (§11).
+Session 4 added the NOAA GFS wind forecast (§12). Session 5 verified every data
+source, brought the INCOIS PFZ advisory live and settled tide (§13).
+Everything above §10 describes the state after session 1 and is still current
+except where the later sections say otherwise.*
 
 This document records what was built, why, and the decisions taken while building it.
 It is the handover artifact: read this before resuming.
@@ -20,9 +23,9 @@ It is the handover artifact: read this before resuming.
 |---|---|
 | Documentation | Design documents **01–22** written (23–30 not started) |
 | Phase 0 — foundation | Repo, venv, package layout, test harness |
-| Phase 1 — adapters | **INCOIS ERDDAP**, **CMEMS** and **MarineRegions** adapters, all live and verified |
+| Phase 1 — adapters | **five** adapters live and verified: INCOIS ERDDAP, INCOIS GeoServer, CMEMS, MarineRegions, NOAA GFS |
 | Phase 2 — canonical schema | Complete, with structural invariants enforced |
-| Phase 3 — capability tools | **7 of 11 P0 tools** |
+| Phase 3 — capability tools | **9 of 12 bound, 8 returning live data** |
 | Phase 4 — agents | **All five built** (Planner, Discovery, Geospatial, Risk, Reporting) |
 | Phase 5 — LangGraph | **Graph running end to end**, incl. durable human review |
 | Phase 6 — geospatial kernel | Geodesy, temporal alignment, derivations, containment (~65 %) |
@@ -42,45 +45,30 @@ assessed, because it holds whatever the weather does.
 
 ## 2. Code Map
 
+*Current as of session 5.*
+
 ```
 backend/orca/
-├── schemas/          819 lines   canonical model
-│   ├── enums.py                  value kinds, verdicts, domains, representativeness
-│   ├── errors.py                 canonical error taxonomy + legacy mapping
-│   ├── core.py                   SpatialRef, TemporalRef, Provenance, Quality, BBox
-│   ├── data.py                   Observation, Forecast, OceanField, RasterRef, …
-│   ├── assessment.py             Evidence, Claim, Assessment, Recommendation
-│   ├── envelope.py               OrcaEnvelope + provenance-join invariant
-│   └── units.py                  unit aliases + explicit conversion
-├── adapters/        2590 lines   THE ONLY PLACE WITH PROVIDER KNOWLEDGE
-│   ├── incois_erddap/            client, metadata capture + validation, bindings, adapter
-│   ├── cmems/                    store (Zarr v2 reader), client, bindings, adapter
-│   └── marineregions/            WFS client, snapshot writer/reader, boundary adapter
-├── tools/            487 lines   capability contracts + multi-source fallback
-│   ├── base.py                   validation, ToolRun, collect_from_sources
-│   ├── ocean.py                  get_ocean_observations, get_sst, get_chlorophyll
-│   ├── marine.py                 get_wave_conditions, get_currents
-│   └── boundaries.py             get_maritime_boundaries
-├── geospatial/       622 lines   deterministic kernel
-│   ├── geometry.py               geodesic distance/bbox, vector magnitude+direction
-│   ├── topology.py               ray casting, holes, antimeridian, edge distance
-│   ├── temporal.py               representativeness gate, alignment, freshness
-│   ├── derive.py                 vector pairs, ratio-to-local-median
-│   └── methods.py                method id + version registry
-├── assessment/      1015 lines   deterministic rule engine (no LLM)
-│   ├── thresholds.py             YAML threshold sets with validation status
-│   ├── staleness.py              per-parameter usable-age policy
-│   ├── jurisdiction.py           home/foreign placement + boundary implications
-│   ├── engine.py                 sufficiency → bands → worst-factor → confidence
-│   ├── regulatory.py             containment → PERMITTED/RESTRICTED/PROHIBITED/UNKNOWN
-│   └── synthesis.py              cross-domain headline, limiting factor
-└── cli/query.py      227 lines   vertical slice runner
+├── schemas/          824 lines   canonical model (a leaf: imports nothing from ORCA)
+├── llm/              270 lines   provider abstraction; ORCA runs with none configured
+├── adapters/        3483 lines   THE ONLY PLACE WITH PROVIDER KNOWLEDGE
+│   ├── erddap.py                 shared ERDDAP protocol (D-28)
+│   ├── incois_erddap/            S-01..S-04  Argo, archive SST/chlorophyll
+│   ├── incois_wms/               S-06        official PFZ advisory (vector)
+│   ├── cmems/                    S-07        waves, currents, SST, chlorophyll, wind obs
+│   ├── marineregions/            S-08        versioned maritime boundaries
+│   └── noaa_gfs/                 S-11        wind FORECAST (+164 h)
+├── tools/            944 lines   capability contracts, registry, composition root
+├── geospatial/       662 lines   deterministic kernel
+├── assessment/      1144 lines   deterministic rule engine (no LLM, ever)
+├── agents/          1244 lines   the five agents + grounding validators
+├── graph/           1053 lines   LangGraph state, routing, nodes, runtime
+└── cli/              381 lines   `ask` (agent-planned) · `query` (fixed slice)
 
-config/    datasets.json (captured) · boundaries.yaml · thresholds/*.yaml ·
-           staleness.yaml · tls/
-data/      boundaries/<version>/  captured snapshots — GIT-IGNORED, regenerate
-scripts/   capture_datasets.py · capture_boundaries.py
-tests/     unit/ adapters/ fixtures/upstream/{incois_erddap,cmems,marineregions}/
+config/    datasets.json · boundaries.yaml · thresholds/*.yaml · staleness.yaml · tls/
+data/      boundaries/<version>/  captured snapshots -- GIT-IGNORED, regenerate
+scripts/   capture_datasets.py · capture_boundaries.py · check_sources.py
+tests/     unit/ adapters/ agents/ graph/ fixtures/upstream/<source>/
 ```
 
 **Layering rule.** `agents → tools → adapters → source`. Nothing above `adapters/`
@@ -373,23 +361,36 @@ IMD is the critical path. Everything else degrades explicitly.
 
 ## 8. Next Steps
 
-1. ~~**MarineRegions → `REGULATORY` verdict.**~~ **Done — see §10.**
-2. **Agents + LangGraph.** 25 % of remaining backend weight, no external dependencies,
-   and the architectural differentiator. The CLI currently hardcodes the orchestration
-   a Planner is meant to decide. Needs an LLM provider configured. **This is now the
-   critical path for everything that is not credential-blocked.**
-3. **Geospatial completion** — field masking, GeoJSON output, geofencing. The
-   containment kernel (`topology.py`) landed with §10; geofencing can reuse it directly.
-8. **IMD adapter** — build to spec now so it works the day credentials arrive; it
-   already degrades correctly.
-9. **Documents 23–30** — diagrams, ADRs (fold in §4 and §10.3 above), gap register,
-   judge Q&A, traceability, glossary, quickstart, definition of done.
-6. **Boundary follow-ups** (small, from §10.2): widen the snapshot region east of 90 E
-   so Andaman and Nicobar positions can be answered; get the VLIZ licence review done
-   (`14` §"terms"); find a source for restricted/naval zones, which is the one gap that
-   could turn a `PERMITTED` into something else.
+*Rewritten at the end of session 5, against the problem statement rather than
+against the roadmap alone (§14 explains why the two differ).*
 
----
+1. **IMD registration.** The only remaining SOURCE blocker. It gates official
+   warnings, lightning and cyclone tracks — three of the four unbound
+   capabilities and two of the problem statement's example queries. It is
+   paperwork, not engineering, and everything already degrades correctly around
+   it. Start it before writing more code.
+2. **Conversational API + working multi-turn.** The platform is specified as
+   conversational and currently answers one question from a CLI.
+   `session_context` is read but never written, so a second turn inherits
+   nothing (§14). This unlocks three named capabilities at once.
+3. **Multilingual.** Its own bullet in the problem statement, with emphasis on
+   Indian regional languages, and currently at zero — `language` is plumbing
+   that is always `"en"`. Cheaper than it looks: the deterministic template
+   composes answers from structured fields, so this is a lexicon problem rather
+   than a model problem, and `06` §7.2 already forbids translating numbers or
+   quoted official text.
+4. **Geofencing notifications.** Nearly free: distance-to-boundary and a
+   `near_boundary` flag are already computed on every run. Turning that into a
+   proximity notification is small, and it is a named deliverable.
+5. **Map and charts.** Named twice in the problem statement. The layer
+   descriptors and evidence already exist to render.
+6. **A second wind source.** S-11 is the only wind forecast and is
+   intermittently slow (§13.4); when it fails SAFETY loses a required input.
+7. **Persistence (`db/`).** Closes the Phase 5 gate and enables the offline
+   replay mode `16` §4 wants for a blocked venue network.
+8. **Retire `cli/query.py`.** The graph CLI supersedes it; keeping both invites
+   drift.
+9. **Route optimisation**, and **documents 23–30**.
 
 ## 9. How to Run
 
@@ -398,11 +399,17 @@ python3 -m venv .venv
 ./.venv/bin/pip install pydantic httpx certifi truststore numcodecs numpy pyyaml \
                         pytest langgraph
 
-./.venv/bin/python -m pytest tests -q          # 248 offline tests, no network, no LLM
+./.venv/bin/python -m pytest tests -q          # 289 offline tests, no network, no LLM
 
 ./.venv/bin/python scripts/capture_boundaries.py   # REQUIRED once: boundary snapshot
 ./.venv/bin/python scripts/capture_datasets.py     # live INCOIS metadata capture
+./.venv/bin/python scripts/check_sources.py        # live source audit -- run this first
 ```
+
+`check_sources.py` exercises every capability against a real position and prints
+what each source actually did. **Run it before believing any claim in this
+document about what works.** Try `--lat 15.5 --lon 81.5` for a position inside
+the current PFZ issue.
 
 `data/boundaries/` is git-ignored, so a fresh clone must run
 `capture_boundaries.py` before the REGULATORY domain can decide anything; the
@@ -636,7 +643,7 @@ every LLM site — plan repair (`06` §3.8), template rationale (§6.7), templat
 answer (§7.8). Making those the default rather than the exception costs nothing
 and means an unconfigured deployment produces a complete, grounded, less fluent
 answer instead of no answer.
-**Consequence.** All 248 tests are offline and model-free. Configuring a model
+**Consequence.** All 289 tests are offline and model-free. Configuring a model
 changes fluency; it cannot change a number or a verdict, and tests assert that.
 
 ### 11.3 Where the LLM is allowed to act, and what constrains it
@@ -835,3 +842,209 @@ combination of sources could do before.
 * **`wind_gust` has no source.** GFS publishes none here; IMD would.
 * **Conflict detection (M-32) is still unbuilt**, though GFS now gives
   `get_wave_conditions` a plausible second source for it.
+
+---
+
+## 13. Session 5 — making the data sources actually work
+
+A source audit rather than a feature: `scripts/check_sources.py` exercises every
+capability live and prints what each one actually did. Run it before believing
+any claim about what works.
+
+**Before:** 7 bound, 2 returning clean data, 4 declared unavailable.
+**After:** 9 bound, 8 returning data, 3 unavailable (all IMD) + 1 declared with
+no source (tide).
+
+### 13.1 PFZ is live — and the design's `RASTER_ONLY` branch was not needed
+
+`03` §S-06 had been PENDING VERIFICATION since the audit, because the original
+test network could not resolve `services.incois.gov.in`. That host still does not
+resolve; **`incois.gov.in/geoserver` does**, and serves 342 layers.
+
+WFS is 403, but **`GetFeatureInfo` returns real `MultiLineString` geometry**, so
+PFZ is a *vector* capability. `get_pfz` now answers the problem statement's first
+example query against the official product:
+
+```
+Where is the nearest PFZ today?
+  -> 45.22 km away, issued 2026-09-02
+  -> official INCOIS advisory, quoted not recomputed
+  -> distance_to_advisory_line v1.0
+```
+
+**D-29 · ORCA measures the distance; INCOIS owns the advisory.**
+`12` §5.3 reserves "PFZ" for the authoritative product. The distance is a
+*derived* value carrying a derivation record that names the official geometry it
+was measured against; ORCA never infers a PFZ from SST and chlorophyll, and its
+own productivity reasoning keeps a separate name.
+
+**Three outcomes, kept distinct.** Found; checked-and-none-in-range (`NO_DATA`, a
+result); outside the issue extent (`INSUFFICIENT_COVERAGE`, we did not look).
+`EvidencePool` gained PFZ status ingestion so the middle case can never read as
+the last (D-3). Kochi is currently the third case: today's issue starts at
+11.64 N and Kochi is at 9.93 N.
+
+| ID | Finding |
+|---|---|
+| **F-30** | The PFZ layer has **no time dimension**; the issue date is `Year` + `Julian_day` and must be converted. An old or undated advisory is flagged, never presented as today's. |
+| **F-31** | Today's issue does not reach Kochi. A fact about the issue, not the point. |
+| **F-32** | The GeoServer is intermittently 5xx. Retry handles it; a persistent failure degrades to a declared gap. |
+| **F-34** | **`distance_to_ring_km` closes the ring with `np.roll`, which is right for a polygon and wrong for a line.** On a PFZ advisory it invents a segment from the last vertex to the first, which can run hundreds of kilometres across open sea — a test point measured 5.6 km from the phantom segment and 105.6 km from the real line. Added `distance_to_line_km` for open polylines. |
+
+### 13.2 Tide — no source, and that is the answer
+
+The problem statement names tide. Every route was tried (`03` §17.3): UHSLC has a
+**Cochin gauge 4 km from the demo point** but its data ends 2026-07-31; CMEMS
+publishes a tide product for the Arctic only; the INCOIS `TideGauges` layer
+carries station locations, not levels; NOAA CO-OPS is US-only.
+
+**D-30 · A declared capability with no source, rather than a computed tide.**
+ORCA will not compute its own tide prediction: without published harmonic
+constituents that is an authoritative-looking invented number, which is the one
+thing this system exists not to do. `get_tides` is in the catalogue and is named
+in every answer that would have used it. Tidal *currents* are already covered —
+the CMEMS total-current product includes the tidal component.
+
+This is a deviation from `04`, which lists eleven P0 tools and omits tide even
+though the problem statement asks for it.
+
+### 13.3 Chlorophyll was never broken
+
+Investigated because it looked alarming in the audit: `PARTIAL` with
+`STALE_DATA` and `INSUFFICIENT_COVERAGE`. It returns 4.77 mg m-3 valid
+2026-09-01 with a local-median ratio of 1.026. The adapter flags a two-day-old
+composite as stale; `config/staleness.yaml` allows ocean colour four days, and
+the assessment uses it. That is the layering working: the adapter reports what
+the product is, the domain policy decides whether it is fit for purpose.
+
+### 13.4 Source reliability, as observed
+
+| Source | Observation |
+|---|---|
+| S-11 NOAA GFS (PacIOOS) | correct but **intermittently slow** (29 s, 88 s, one outright failure in ~10 calls). It is the *only* wind-forecast source, so when it fails the run falls back to a stale CMEMS observation and SAFETY loses a required input. A second NWP source would remove a single point of failure. |
+| S-06 INCOIS GeoServer | intermittent 503s between successful calls |
+| S-07 CMEMS | chlorophyll consistently slow (13–71 s); the 403 intermittency of §15.5 was not reproduced this session |
+
+### 13.5 Two bugs the live PFZ data exposed
+
+Wiring a real source in immediately surfaced two places where its values were
+being quietly discarded. Neither was visible while the source was unavailable.
+
+| ID | Finding |
+|---|---|
+| **F-35** | **`FISHING_SUITABILITY` did not accept `BULLETIN_PERIOD` as primary evidence**, so the INCOIS PFZ advisory — the most authoritative fishing input ORCA has — was downgraded to `REPRESENTATIVENESS_MISMATCH` and a *derived* chlorophyll ratio drove the verdict instead. Backwards. `DOMAIN_ACCEPTS` now admits bulletins for fishing. |
+| **F-36** | **Presence-based factors other than `official_warning_status` contributed nothing at all.** The engine built evidence and a driver for warnings and then `continue`d, so a checked `pfz_advisory` or `lightning` produced no evidence, no driver and no contribution to sufficiency. Replaced with a `PRESENCE_SEMANTICS` table. |
+
+**D-31 · Presence and absence are not symmetric, and the table says so.**
+A warning or a lightning strike in force is adverse and its confirmed absence is
+reassuring, so both directions band. A PFZ advisory nearby is a positive signal,
+but its absence carries **no** verdict weight: INCOIS issues advisories where
+conditions warrant, not everywhere every day, so "no advisory here today" is an
+editorial fact about the bulletin, not evidence that fishing is poor. Banding
+the absence would manufacture an unfavourable finding out of an issuing
+decision. The checked absence is still recorded as evidence, so the answer can
+say it was looked for.
+
+---
+
+## 14. Where the Project Stands Against the Problem Statement
+
+Recorded because the internal roadmap and the problem statement do not weight
+the same things, and the difference is a scoring risk rather than a matter of
+taste. `17_IMPLEMENTATION_ROADMAP.md` §4 lists **route optimisation** and
+**more than two languages** as explicit MVP *non-requirements*; the problem
+statement names both. That scoping was defensible for a vertical slice. As a
+submission strategy it needs a deliberate decision, not inheritance.
+
+### 14.1 The ten named platform capabilities
+
+| # | Capability | State |
+|---|---|---|
+| 1 | Understand natural-language intent | strong |
+| 2 | **Detect the language and reply in it — Indian regional** | **absent** |
+| 3 | **Contextual multi-turn conversation** | **~5 %** — `session_context` is read, never written |
+| 4 | Autonomously discover, retrieve, integrate datasets | strong — five sources live |
+| 5 | Spatial / temporal / contextual correlation | strong |
+| 6 | Explainable recommendations **with maps, charts, geo-visualisation** | evidence yes; **visuals absent** |
+| 7 | **Proactive hazard alerts** | **absent** (and 3 of 4 inputs are IMD-blocked) |
+| 8 | **Geofencing notifications** | containment yes; **notification absent** |
+| 9 | **Route optimisation / safe navigation** | **absent** |
+| 10 | Recommendations with supporting evidence and reasoning | the strongest thing ORCA has |
+
+Four strong, one half, five absent — roughly **45–50 % of the named
+capabilities**, and the absences are concentrated in the *conversational* and
+*presentational* half of the brief rather than the reasoning half.
+
+### 14.2 The eight example queries
+
+| Query | Answerable |
+|---|---|
+| Nearest PFZ today | **yes** (session 5) |
+| Safe to venture tomorrow morning | **yes** (session 4) |
+| Tide, weather and sea conditions | partial — **no tide** (§13.2) |
+| Lightning or cyclone alerts | no — IMD |
+| Regions with high chlorophyll and favourable SST | partial — point, not region; no map |
+| Safest route | no |
+| Why has fish productivity declined | no — no historical comparison, no RAG |
+| Zones to avoid (hazard or geofencing) | partial — containment yes, notification no |
+
+**Two of eight fully, three partially.** At the start of this conversation it
+was zero of eight, so the direction is right; the count is what matters for a
+submission.
+
+### 14.3 The agent-count question, which we should expect to be asked
+
+The problem statement *encourages* nine named agents: planning, data discovery,
+**weather intelligence**, **ocean analytics**, geospatial reasoning, risk
+assessment, **visualisation**, reporting, **user interaction**. ORCA has five,
+deliberately: `06` §1 argues an agent exists only where judgement under
+uncertainty is required, and that alignment, unit conversion, point-in-polygon
+and threshold evaluation are kernel functions with unit tests rather than
+"agents".
+
+That argument is sound and the design should stand. But `16` §6's twenty
+prepared judge objections **do not include it**, and "why five when the brief
+says nine?" is an obvious question. It needs an answer written down: the four
+missing names are *functions ORCA performs*, and three of them (weather
+intelligence, ocean analytics, visualisation) are deterministic — making them
+agents would add ceremony without adding judgement.
+
+---
+
+## 15. Decision Index
+
+Every ADR-style decision in this document, in one place. The IDs collided twice when sessions ran in parallel (§10.2, §11.5); this table is the authority on which is which.
+
+| ID | Decision | Where |
+|---|---|---|
+| **D-1** | A focused Zarr v2 reader instead of xarray + zarr + fsspec | §4 |
+| **D-2** | TLS: OS trust store, then a generated bundle; never disable verification | §4 |
+| **D-3** | Presence-based factors come from the tool *outcome*, not a sentinel value | §4 |
+| **D-4** | Time-aware source selection, not first-match fallback | §4 |
+| **D-5** | Ageing is asymmetric and configured per parameter | §4 |
+| **D-6** | Chlorophyll is expressed comparatively, never absolutely | §4 |
+| **D-7** | Units are read from the source and converted explicitly | §4 |
+| **D-8** | Derivations belong to the kernel, never to adapters | §4 |
+| **D-9** | Search outward for the nearest valid ocean cell | §4 |
+| **D-10** | Structural guards in the schema, not conventions in prose | §4 |
+| **D-11** | Gaps are scoped per domain | §4 |
+| **D-12** | Upstream fixtures are recorded, never hand-authored | §4 |
+| **D-13** | `403` is a failure, never "no data" | §4 |
+| **D-14** | A versioned local snapshot, not a query-time WFS call | §10.3 |
+| **D-15** | Coverage is a declared region, and outside it the answer is refusal | §10.3 |
+| **D-16** | Boundary types are evaluated independently; the worst governs | §10.3 |
+| **D-17** | A layer with no feature for this jurisdiction cannot say "outside" | §10.3 |
+| **D-18** | The geometry is a fact; what it means is a legal judgement, and they live apart | §10.3 |
+| **D-19** | An unevaluated boundary type is named in every answer | §10.3 |
+| **D-20** | A regulatory constraint outranks a safety refusal in the headline | §10.3 |
+| **D-21** | No LLM is required, and the deterministic path is first-class | §10.3 |
+| **D-22** | The registry is the seam that keeps `agents/` away from `adapters/` | §11.5 |
+| **D-23** | A capability with no source is *declared*, not omitted | §11.5 |
+| **D-24** | Live objects travel in graph *config*, not graph *state* | §11.5 |
+| **D-25** | A branch that fails hard still appends an assessment | §11.5 |
+| **D-26** | A missing authority check caps the verdict; a missing measurement still blocks it | §11.5 |
+| **D-27** | The originating authority and the distributor are both recorded | §12 |
+| **D-28** | The ERDDAP protocol is shared; the host is not | §12 |
+| **D-29** | ORCA measures the distance; INCOIS owns the advisory | §13 |
+| **D-30** | A declared capability with no source, rather than a computed tide | §13 |
+| **D-31** | Presence and absence are not symmetric, and the table says so | §13 |

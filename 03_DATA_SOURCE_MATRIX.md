@@ -607,3 +607,71 @@ evaluation with dataset version and `advisory_only`") is **met**.
 
 REGULATORY is the second fully evidenced domain and the only one that needs no forecast,
 no credentials and no network at query time.
+
+---
+
+## 17. Live Verification — INCOIS GeoServer (S-06) and the tide search, 2026-09-03
+
+### 17.1 S-06 is VERIFIED, at a different endpoint
+
+§S-06 recorded **PENDING VERIFICATION** because the test network could not
+resolve `services.incois.gov.in`. On an unrestricted network that host *still*
+does not resolve — but `incois.gov.in/geoserver` answers `GetCapabilities` with
+**342 layers**, including the PFZ set. The verification is closed; the endpoint
+in the audit was wrong, not merely unreachable.
+
+| Endpoint | Result |
+|---|---|
+| `services.incois.gov.in/geoserver` | does not resolve |
+| `incois.gov.in/geoserver/wms` `GetCapabilities` | **200**, 446 kB, 342 layers |
+| `wfs` `GetCapabilities` and `GetFeature` | **403 Forbidden** |
+| `wms` `GetFeatureInfo` (`application/json`) | **200**, real GeoJSON geometry |
+| `wms` `GetMap` | **200**, renders |
+
+### 17.2 The open question answered: PFZ is VECTOR
+
+§S-06 asked whether PFZ geometry is retrievable or whether the layer is imagery
+only, and the design carried a `RASTER_ONLY` branch for it. **That branch is not
+needed.** WFS is closed, but `GetFeatureInfo` returns `MultiLineString` geometry
+with attributes, so a spatial search is expressed as a `GetFeatureInfo` with a
+bbox and a pixel `BUFFER` acting as the search radius.
+
+Layers bound:
+
+| Purpose | Layer | Extent |
+|---|---|---|
+| PFZ advisory lines | `PFZ_Automation:pfzlines` | 11.64–23.06 N, 67.15–93.37 E |
+| Named advisory sectors | `PFZ_Sectors:sector_new` | 6.35–23.76 N, 67.88–94.78 E |
+
+| ID | Finding |
+|---|---|
+| **F-30** | The PFZ layer carries **no time dimension**: the server serves whatever issue is current, and the issue date lives in each feature as `Year` + `Julian_day` (`2026` + `245` = 2 Sep 2026). It must be converted before it can be compared, and an undated or old advisory is flagged rather than presented as today's. |
+| **F-31** | **The current issue's extent starts at 11.64 N, so Kochi has no PFZ advisory today.** That is a fact about the issue, not about the point. "No advisory near you" and "we did not look there" are returned as different outcomes: `NO_DATA` (checked, none in range) versus `INSUFFICIENT_COVERAGE` (outside the extent). |
+| **F-32** | The GeoServer is **intermittently 5xx** (observed several 503s between successful calls). Handled by retry with backoff; a persistent failure degrades to a declared gap. |
+
+### 17.3 Tide — investigated, no reachable source
+
+The problem statement names tide explicitly. Every route was tried on
+2026-09-03:
+
+| Candidate | Result |
+|---|---|
+| UHSLC ERDDAP `global_hourly_fast` | reachable; **Cochin gauge exists at 9.967 N, 76.267 E** — 4 km from the demo point — but `time_coverage_end` is **2026-07-31**, about a month behind |
+| CMEMS STAC | the only tide product is `ARCTIC_ANALYSISFORECAST_PHY_TIDE_002_015` — Arctic only |
+| CMEMS `SEALEVEL_*` | altimetry anomalies, not tidal height |
+| INCOIS `TideGauges:TideGauges` | station **locations** (points), not levels |
+| NOAA CO-OPS | US stations only |
+
+| ID | Finding |
+|---|---|
+| **F-33** | **No reachable source publishes a tide prediction for the Indian coast.** UHSLC is an archive for this purpose, on the same pattern as the INCOIS SST holdings. ORCA will **not** compute its own tide prediction: without published harmonic constituents that would be an authoritative-looking invented number. `get_tides` is therefore a **declared capability with no source**, named in every answer that would have used it. |
+
+**Partial consolation.** Tidal *currents* are already covered: the CMEMS total
+surface current product includes the tidal component, so `current_speed`
+reflects it. Tidal *height* is what is missing.
+
+**Deviation.** `04_ORCA_TOOL_CONTRACTS.md` specifies eleven P0 tools and does not
+include tide, although the problem statement names it. `get_tides` was added to
+the catalogue as a twelfth, declared-unavailable capability, so that an answer
+about "tide, weather and sea conditions" states what it could not check instead
+of quietly answering two thirds of the question.

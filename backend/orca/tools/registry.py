@@ -100,6 +100,15 @@ CATALOGUE: tuple[ToolSpec, ...] = (
              "Subsurface temperature and salinity.",
              _POINT_ARGS, ("temperature", "salinity"),
              (Domain.FISHING_SUITABILITY,), 25.0, ("radius_km",)),
+    #: NOT in 04_ORCA_TOOL_CONTRACTS.md's list of eleven. The problem statement
+    #: names tide explicitly ("What are the tide, weather, and sea conditions
+    #: near my fishing location?"), so the capability is DECLARED even though no
+    #: source currently serves it -- an answer that silently omitted tide would
+    #: read as though tide had been considered (D-15).
+    ToolSpec("get_tides",
+             "Tidal height and phase at a coastal position.",
+             _POINT_ARGS, ("tide_height", "tide_phase"),
+             (Domain.SAFETY,), 15.0, ()),
     ToolSpec("get_maritime_boundaries",
              "Point-in-polygon against versioned maritime boundary geometry.",
              _POINT_ARGS_NO_TIME, ("maritime_boundaries",),
