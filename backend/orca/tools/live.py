@@ -12,7 +12,7 @@ what it could not check.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Callable
 
 from .boundaries import get_maritime_boundaries
 from .marine import get_currents, get_wave_conditions, get_weather
@@ -89,3 +89,60 @@ def build_live_registry(*, erddap, cmems, boundaries, gfs=None,
         if not r.is_available(name):
             r.mark_unavailable(name, reason)
     return r
+
+def bind_live_tools() -> ToolRegistry:
+    from ..adapters.cmems.adapter import CmemsAdapter
+    from ..adapters.incois_erddap.adapter import IncoisErddapAdapter
+    from ..adapters.marineregions.adapter import MarineRegionsAdapter
+    from ..adapters.incois_wms.adapter import IncoisPfzAdapter
+    from ..adapters.noaa_gfs.adapter import NoaaGfsAdapter
+    
+    # Initialize without context managers for long-running API. 
+    # Connection pooling will handle reuse.
+    erddap = IncoisErddapAdapter()
+    cmems = CmemsAdapter()
+    boundaries = MarineRegionsAdapter()
+    gfs = NoaaGfsAdapter()
+    pfz = IncoisPfzAdapter()
+    
+    return build_live_registry(
+        erddap=erddap, cmems=cmems, boundaries=boundaries, gfs=gfs, pfz=pfz
+    )
+
+
+def build_sea_mask(boundaries) -> "Callable[[float, float], bool]":
+    """A navigability test for route planning, from the boundary snapshot.
+
+    An EEZ polygon is a MARITIME zone: it runs from the baseline seaward and
+    excludes land. So "inside some EEZ" is a serviceable test for "at sea",
+    using geometry ORCA has already captured and versioned -- no new source.
+
+    Limits, which the caller must state rather than hide:
+      * outside the snapshot region, everything reads as not-navigable, so a
+        route beyond it fails rather than inventing a path;
+      * beyond 200 NM (the high seas) likewise reads as not-navigable;
+      * it is a coastline test, not a bathymetry test. It says nothing about
+        depth, traffic separation schemes or hazards to navigation.
+    """
+    snapshot = getattr(boundaries, "snapshot", None)
+    if snapshot is None:
+        return lambda lon, lat: False
+
+    try:
+        index = snapshot.layer("MarineRegions:eez").index
+    except Exception:
+        return lambda lon, lat: False
+
+    cache: dict[tuple[int, int], bool] = {}
+
+    def is_navigable(lon: float, lat: float) -> bool:
+        # A* revisits cells constantly; the containment test dominates, so
+        # memoise on the grid cell.
+        k = (round(lon * 100), round(lat * 100))
+        hit = cache.get(k)
+        if hit is None:
+            hit = bool(list(index.features_containing(lat, lon)))
+            cache[k] = hit
+        return hit
+
+    return is_navigable

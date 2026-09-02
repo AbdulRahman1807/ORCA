@@ -1048,3 +1048,227 @@ Every ADR-style decision in this document, in one place. The IDs collided twice 
 | **D-29** | ORCA measures the distance; INCOIS owns the advisory | §13 |
 | **D-30** | A declared capability with no source, rather than a computed tide | §13 |
 | **D-31** | Presence and absence are not symmetric, and the table says so | §13 |
+
+## 16. Session 6 — persistence and route optimisation (2026-09-03)
+
+**Work Completed:**
+- **Persistence:** Wired in `SqliteSaver` in the `backend/orca/api/main.py` FastAPI endpoint using a local `sqlite:///orca.db` to handle thread-level persistence, enabling follow-up questions and conversational memory without needing an LLM agent to summarize the conversation.
+- **Route Optimization (A*):** 
+  - Integrated `routing.py`'s `a_star_route` algorithm into the LangGraph state.
+  - Implemented the routing intent processing within the `geo_reason` step of `analysis.py`. The Planner detects intent, routing intercepts coordinate extraction, runs A* over `OceanField` constraints from CMEMS.
+  - Fixed Pydantic serialization limits and `Provenance` schema enforcement for injecting derived routing paths directly into the state's `tool_results`.
+  - Added support in `delivery.py` to identify `optimized_route` derived data objects in the tool results, packaging them as GeoJSON `map_layers` so the frontend UI can visualize them.
+
+**Decisions:**
+- Made Route Optimization fully deterministic: The system relies solely on the `A*` heuristics evaluated against current `OceanField` values and `geo_reason` orchestrates the graph logic without delegating the routing pathfinding task to an LLM.
+- Derivations (e.g. Optimized Route) must be injected explicitly through an `OrcaEnvelope` containing `DerivedResult`, `TemporalRef`, and a valid `Derivation` nested within `Provenance`. Skipping this creates runtime Pydantic validation errors in the `assess_domain` components.
+
+---
+
+## 17. Session 7 — multilingual, geofencing and the HTTP API
+
+### 17.1 Multilingual was scaffolded but not reachable
+
+`i18n/` existed with twelve lexicons and was wired into `ingest` and the
+Reporting agent — but a query in Malayalam produced **nothing**: intent
+`unknown`, location `None`. Detection worked; everything downstream was
+English-only.
+
+| ID | Finding |
+|---|---|
+| **F-37** | **The gazetteer, the intent keywords and the time expressions were all Latin-only**, so language *detection* succeeded while language *comprehension* failed completely. A translated answer to a question ORCA could not read is worth nothing. |
+| **F-38** | `generate.py` ended `return "\\n".join(out)` — a literal backslash-n. Every narrative, **including English**, emitted `\n` as text instead of newlines. |
+
+**D-32 · A language is a YAML drop, including how it is understood.**
+The lexicons gained `place:`, `intent:` and `time:` sections alongside the
+existing output vocabulary, so a language now carries both halves — what ORCA
+says *and* what it can read. `_resolve_location`, `_resolve_window` and
+`PlannerAgent.classify` consult the language's own section first and fall back
+to the Latin/English path, because people mix scripts and transliterate.
+English, Malayalam, Tamil and Hindi are filled; the other eight lexicons
+degrade to English rather than failing.
+
+Verified: the same question in four languages resolves to the same location,
+window, intent and plan, and returns a narrative in the language asked, with
+numbers, units and `IMD`/`INCOIS` untouched (`06` §7.2).
+
+**Known limits, recorded not solved.** Devanagari is shared across Hindi and
+Marathi, so script detection maps it to Hindi; the Marathi lexicon is complete
+and reachable by passing `language: "mr"` explicitly, but not by detection.
+Romanised input ("kochiyil naale") is detected as English.
+
+### 17.4 Ten languages, and a rule that stops the claim drifting
+
+The twelve lexicons were not twelve languages. Eight of them —
+`bn gu kn mr or pa te ur` — had **zero translated verdicts**: English content in
+a file named for another language, with no `place`/`intent`/`time` at all. A
+Bengali query would have been detected as Bengali, failed to parse, and been
+answered in English.
+
+| ID | Finding |
+|---|---|
+| **F-42** | **Eight of the twelve lexicons were shells.** Detecting a language ORCA cannot serve is worse than not detecting it: the question goes unparsed and the answer comes back half-English. Advertising twelve was a false claim. |
+
+Six coastal-state languages were filled properly — **Telugu, Bengali,
+Gujarati, Marathi, Kannada, Odia** — matching the states whose fishers the
+platform is for. Punjabi and Urdu remain shells and are deliberately *not*
+advertised.
+
+**D-35 · Support is all-or-nothing, and the code enforces it.**
+`REQUIRED_SECTIONS` names the three comprehension sections and the five output
+sections a lexicon must define. `is_supported()` checks them, `detect_language`
+consults it, and a script whose lexicon is not ready falls back to English **on
+purpose** rather than half-serving. `tests/unit/test_i18n.py` asserts the
+invariant per language, so a shell can never be advertised again and a new
+language cannot be half-added.
+
+Verified across all ten: place, intent and time resolve from the native script;
+the narrative renders in the language asked; numbers, units and `IMD`/`INCOIS`
+survive untouched.
+
+Every lexicon carries `_meta.status`. All but English are
+`TRANSLATION_REVIEW_REQUIRED` — the verdict vocabulary is safety-critical and
+has not been checked by a native speaker.
+
+**The verdict vocabulary is safety-critical** and these translations have not
+been checked by a native speaker. `UNSAFE` and `INSUFFICIENT_EVIDENCE` matter
+more than fluency; treat the lexicon as `TRANSLATION_REVIEW_REQUIRED` in the
+same spirit as the thresholds.
+
+### 17.2 Geofencing — a policy over numbers already computed
+
+**D-33 · Geofence alerts fetch nothing.**
+Every boundary run already yields, per type, whether the point is inside and how
+far the nearest edge is. `assessment/geofence.py` is a policy over those: an
+approach threshold per boundary type, "inside" as the notifiable event for
+constraining types, and warnings ordered before cautions.
+
+The rule that matters: **an alert is only raised for a type that was actually
+evaluated.** A type with no source produces no alert *and no reassurance* —
+silence about a restricted zone nobody checked would read as "you are clear"
+(D-3 again, in a new place).
+
+### 17.3 The HTTP API
+
+`backend/orca/api/main.py`. It adds no reasoning; every field it returns was
+produced by the pipeline and is provenance-bound.
+
+| ID | Finding |
+|---|---|
+| **F-39** | The first cut built the tool registry **inside the request handler**, opening a fresh HTTP client per source per call. Moved to a FastAPI `lifespan`: built once, held for the process. |
+| **F-40** | The time window was passed as `{"start", "end"}` where the graph expects `{"start_time", "end_time"}`, so a caller-supplied window was silently ignored. |
+| **F-41** | No CORS. Every fetch from a browser UI would have failed. |
+
+**D-34 · Language is detected per TURN, not per thread.**
+The checkpointer restores the previous turn's language, which would answer an
+English follow-up in Malayalam. The problem statement asks for the language of
+the query in hand, so detection happens at the API boundary and overrides the
+restored value.
+
+Endpoints: `POST /v1/chat`, `POST /v1/chat/stream` (SSE, one event per graph
+node — this is what lets a UI show the agents working rather than a spinner),
+`GET /v1/health`, `GET /v1/health/sources`, `GET /v1/runs/{thread}`,
+`GET /v1/runs/{thread}/provenance`.
+
+Multi-turn is confirmed working end to end: a Malayalam question resolves Kochi
+from its own lexicon, and an English follow-up on the same thread carries the
+location forward while answering in English.
+
+**322 tests, all offline.** The API tests never start the lifespan, so no test
+touches the network.
+
+---
+
+## 18. Session 8 — verifying route optimisation, and dropping RAG
+
+### 18.1 Routing was confidently wrong
+
+Session 6 added A* route optimisation. It passed its tests and returned a
+plausible-looking path. It was **broken in the most dangerous way available**.
+
+| ID | Finding |
+|---|---|
+| **F-43** | **Routes crossed land.** Kochi to Chennai returned a straight line over the Western Ghats and through the middle of Tamil Nadu. Two causes: `cost_function` consulted only `OceanField` objects and **nothing in ORCA ever constructs one**, so the field list was always empty and every point cost `0.0`; and there was **no land mask at all**. A plausible line on a map is the worst failure this system can produce — it is exactly the fabricated-but-credible output every other guard exists to prevent. |
+
+**D-36 · Navigability is a required argument, not an optional refinement.**
+`a_star_route` now raises without `is_navigable`. There is no permissive default,
+because the permissive default is what produced F-43. Field penalties steer a
+route *within* navigable water; the mask is the safety property.
+
+**D-37 · The sea mask is the EEZ polygon we already had.**
+An EEZ is a maritime zone: it runs seaward from the baseline and excludes land.
+"Inside some EEZ" is therefore a serviceable "at sea" test, using versioned
+geometry ORCA already captured — no new source, no new dependency. Built at the
+composition root (`tools/live.py`) and carried on `OrcaRuntime`, so `graph/`
+receives a callable and still never imports an adapter.
+
+Stated limits: outside the snapshot region and beyond 200 NM everything reads as
+not-navigable, so a route there **fails rather than inventing a path**; and it is
+a coastline test, not bathymetry — it says nothing about depth or hazards.
+
+**D-38 · Endpoint snapping is bounded.**
+Harbours sit on land, so endpoints must move to reach water. Unbounded, that
+silently relocated an unreachable destination 7° away — answering a question
+nobody asked. Capped at 30 km; beyond that routing refuses.
+
+Verified live: **Kochi to Chennai, 51 waypoints, no waypoint on land** — south
+down the Kerala coast, around Kanyakumari, north-east up the Tamil Nadu coast.
+Kochi to Mumbai, 61 waypoints, likewise clean.
+
+### 18.2 RAG is out of scope — confirmed, not deferred
+
+Checked because it kept appearing on pending lists. It should not be there:
+
+* **The problem statement never mentions it.** No RAG, document retrieval,
+  knowledge base or embeddings. It asks for retrieval of *datasets*.
+* **`22_MVP_SCOPE.md` §S-02 lists it as a scope cut**: *"RAG over 30–60 curated
+  documents — cut entirely; report 'documentation context unavailable'."*
+* **`06_AGENT_SPEC.md` §6.6**: `search_marine_knowledge` is P1, explanatory only,
+  may never change a verdict — *"In the MVP the agent has no tools."*
+
+Phase 7 comes off the board. It was never pending work.
+
+---
+
+## 19. Session 9 — hardening pass before the UI
+
+A deliberate review of everything not written in this session. Seven defects,
+five of them user-visible, none caught by the 394 tests that were passing.
+
+### 19.1 The route nobody could see
+
+| ID | Finding |
+|---|---|
+| **F-44** | **The problem statement's own route query classified as `fishing_suitability`.** `_KEYWORDS` is first-match-wins and `\bfish` sat at position 4 while the route pattern sat at 6, so *"the safest route for a fishing vessel"* never reached it. Reordered most-specific-first, with the reason written next to the table. |
+| **F-45** | **Route destinations were detected and then discarded.** `"plan a route to Mumbai"` matched the only named place as the ORIGIN and routed from the destination to itself. The destination is now settled first and excluded from origin matching. Destination parsing also handles bare `"to X"`, multi-word names and native scripts. |
+| **F-46** | **A route requested without a destination silently produced a safety assessment instead.** Now asks (`clarification_needed = "destination"`). Answering a question nobody asked is the failure this system exists to prevent. |
+| **F-47** | **`except Exception: logging.error(...); pass` in `geo_reason`.** Route planning was failing on a `NameError` and the user was told nothing — they asked for a route and got a safety answer. The comment promised a "fallback to straight line", which would have been F-43 all over again. Failure is now a declared gap. |
+| **F-48** | **The route was computed, then never delivered.** `map_layers` was attached to the `Recommendation` via `model_copy`, while the API read `map_layers` from graph state, which nothing set. Computed-but-undelivered is indistinguishable from broken. |
+
+**D-39 · Route keywords outrank fishing and safety keywords.**
+A query naming a route is asking for one whatever else it mentions. The
+ordering is load-bearing, so the table now says so.
+
+**D-40 · A route needs no stated time.** `route_optimization` was in
+`TIME_SENSITIVE`, so *"plan a route to Chennai"* demanded a time window before
+drawing anything. It means now.
+
+### 19.2 Two implementations of the same feature
+
+| ID | Finding |
+|---|---|
+| **F-49** | **Geofence alerts were computed twice**, by `assessment/geofence.py` at `evidence_assemble` and by a rival copy inside the `report` node. Because `alerts` uses an `add` reducer, every alert was emitted **twice in two different shapes**, and the second copy did not check whether a boundary type had been evaluated — reintroducing the "silence reads as reassurance" bug D-3 exists to prevent. The duplicate is deleted. |
+| **F-50** | `a_star_route` built its `Derivation` by hand instead of through `methods.derivation()`, bypassing the registry that enforces "a method may not change behaviour without a version bump" (D-8). Registered. Its `value` was also the waypoint COUNT; it is now the route length in km, which is a number someone can act on. |
+
+### 19.3 What the review did not find
+
+Worth recording, because it is evidence the invariants hold: no fabricated
+values, no silent source substitution, no `assessment/` or `geospatial/` import
+of `llm/`, no URL literal above `adapters/`, and the 80 import-boundary
+assertions still pass. The schema caught two of my own bad test fixtures
+during this session — the provenance join and the `NotEvaluated` type — which
+is the structural-guard argument (D-10) working on its author.
+
+**398 tests.** Verified live end to end: Kochi to Chennai returns a 76-point
+GeoJSON LineString, 996.6 km, no waypoint on land, marked `advisory_only`, with
+a registered derivation and three de-duplicated geofence alerts.

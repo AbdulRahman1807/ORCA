@@ -76,6 +76,8 @@ class OrcaGraphState(TypedDict, total=False):
     # ---- assessment (fan-in) --------------------------------------------
     assessments: Annotated[list, add]
     conflicts: Annotated[list, add]
+    alerts: Annotated[list, add]
+    map_layers: Annotated[list, add]
     not_evaluated: Annotated[list, add]
 
     # ---- evidence & output ----------------------------------------------

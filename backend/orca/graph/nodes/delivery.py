@@ -51,11 +51,20 @@ def evidence_assemble(state: OrcaGraphState, config=None) -> dict:
         gap_keys.add(key)
         gaps.append(n)
 
+    # Geofencing notifications are a policy over numbers the boundary run
+    # already produced -- no new retrieval (problem statement, capability 8).
+    from ...assessment.geofence import geofence_alerts
+    boundary = next((e for e in (state.get("tool_results") or [])
+                     if getattr(e, "tool", None) == "get_maritime_boundaries"), None)
+    alerts = [a.as_dict() for a in geofence_alerts(boundary)]
+
     return {
+        "alerts": alerts,
         "node_events": [node_event(
             "evidence_assemble", "success", started=started,
-            summary=f"{len(unique)} evidence item(s), {len(gaps)} not evaluated",
-            evidence=len(unique), not_evaluated=len(gaps))],
+            summary=(f"{len(unique)} evidence item(s), {len(gaps)} not evaluated"
+                     + (f", {len(alerts)} geofence alert(s)" if alerts else "")),
+            evidence=len(unique), not_evaluated=len(gaps), alerts=len(alerts))],
         "budget": {"evidence_items": len(unique)},
     }
 
@@ -140,14 +149,68 @@ def report(state: OrcaGraphState, config=None) -> dict:
                                            summary=result.failure.detail)]}
     rec = result.value
     review = state.get("human_review")
-    if review is not None:
-        rec = rec.model_copy(update={"human_review": review})
+    
+    # Geofence alerts are computed ONCE, at evidence_assemble, by
+    # assessment/geofence.py. A second implementation here appended a rival set
+    # through the `add` reducer, so every alert was emitted twice in two
+    # different shapes, and that copy did not check whether a boundary type had
+    # actually been evaluated.
+    map_layers = []
+
+    for env in state.get("tool_results") or []:
+        for item in getattr(env, "data", []):
+            # GeoJSON map layers from VectorFeatures
+            if getattr(item, "type", None) == "VectorFeature":
+                geom = getattr(item, "geometry_inline", None)
+                if geom:
+                    map_layers.append({
+                        "id": getattr(item, "feature_id", "feature"),
+                        "type": "geojson",
+                        "name": getattr(item, "name") or getattr(item, "parameter", "feature"),
+                        "data": {
+                            "type": "Feature",
+                            "geometry": geom,
+                            "properties": getattr(item, "attributes", {})
+                        }
+                    })
+            # Route optimization output from DerivedResult
+            elif getattr(item, "type", None) == "DerivedResult" and getattr(item, "parameter", None) == "optimized_route":
+                spatial = getattr(item, "spatial", None)
+                if spatial and spatial.kind == "linestring" and spatial.coordinates:
+                    map_layers.append({
+                        "id": "optimized_route",
+                        "type": "geojson",
+                        "name": "Optimized Route",
+                        "data": {
+                            "type": "Feature",
+                            "geometry": {
+                                "type": "LineString",
+                                "coordinates": spatial.coordinates
+                            },
+                            "properties": getattr(item, "detail", {})
+                        }
+                    })
+
+    if review is not None or map_layers or state.get("alerts"):
+        updates = {}
+        if review is not None:
+            updates["human_review"] = review
+        # The Recommendation carries its own alerts so it is self-contained;
+        # they are COMPUTED once, upstream, and only copied here.
+        if state.get("alerts"):
+            updates["alerts"] = list(state["alerts"])
+        if map_layers:
+            updates["map_layers"] = map_layers
+        rec = rec.model_copy(update=updates)
+        
     return {
         "recommendation": rec,
         "claims": list(rec.claims),
+        "map_layers": map_layers,
         "node_events": [node_event("report", "success", started=started,
                                    summary=result.reasoning_summary,
-                                   claims=len(rec.claims))],
+                                   claims=len(rec.claims),
+                                   map_layers=len(map_layers))],
     }
 
 
@@ -177,8 +240,18 @@ def finalize(state: OrcaGraphState, config=None) -> dict:
     """Persist, audit, emit. Terminal for every path."""
     started = time.perf_counter()
     rt = runtime_from(config)
+    
+    session_context = dict(state.get("session_context") or {})
+    if state.get("resolved_location"):
+        session_context["resolved_location"] = state.get("resolved_location")
+    if state.get("resolved_time_window"):
+        session_context["resolved_time_window"] = state.get("resolved_time_window")
+    if state.get("intent"):
+        session_context["intent"] = state.get("intent")
+        
     return {
         "budget": {"wall_clock_ms": rt.budget.elapsed_ms()},
+        "session_context": session_context,
         "node_events": [node_event(
             "finalize", "success", started=started,
             summary=(f"disposition={state.get('disposition') or 'n/a'}; "

@@ -75,7 +75,7 @@ def build_graph(checkpointer=None):
     g.add_edge("human_review", "report")
     g.add_edge("report", "finalize")
     g.add_edge("error_handler", "finalize")
-    g.add_edge("clarify", END)
+    g.add_edge("clarify", "finalize")
     g.add_edge("finalize", END)
 
     return g.compile(checkpointer=checkpointer)

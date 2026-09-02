@@ -29,6 +29,9 @@ class OrcaRuntime:
     llm: LLMProvider = field(default_factory=UnavailableProvider)
     ledger: UsageLedger = field(default_factory=UsageLedger)
     budget: Budget = field(default_factory=Budget)
+    #: Navigability test for route planning, supplied by the composition
+    #: root. `None` means routing is unavailable and says so.
+    navigable: Any = None
     max_replans: int = MAX_REPLANS
     #: Analysis window length when the query implies a period rather than an instant.
     window_hours: int = 4

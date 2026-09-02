@@ -207,4 +207,4 @@ class TestCappedVerdictKeepsTheAbsenceGuardArmed:
         rec = ReportingAgent().report(assessments=[self._capped()],
                                       evidence=_evidence()).value
         assert "capped" in rec.narrative
-        assert "official_warning_status" in rec.narrative
+        assert "official warning status" in rec.narrative
