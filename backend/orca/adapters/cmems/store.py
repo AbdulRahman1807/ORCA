@@ -130,8 +130,18 @@ class ZarrStore:
         try:
             raw = self._http.get_bytes(f"{self.base_url}/{meta.name}/{key}")
         except ZarrError as exc:
+            # Zarr omits chunks that are entirely fill, so a 404 means "no data
+            # here" and reads as absent.
+            #
+            # A 403 is NOT treated as absent. On the CMEMS buckets a denied
+            # request and a nonexistent key return an identical AccessDenied
+            # body, so the two are indistinguishable -- and we have observed the
+            # same chunk return 200 earlier in a session and 403 later, which
+            # points to throttling of unauthenticated egress rather than
+            # absence. Reading a denial as "no data" would silently drop real
+            # observations and could present a masked sea as a calm one.
             if exc.kind == "not_found":
-                return None            # zarr omits chunks that are entirely fill
+                return None
             raise
         return self._decode_chunk(meta, raw)
 

@@ -108,3 +108,50 @@ class TestBindings:
         for param, bs in BINDINGS.items():
             for b in bs:
                 assert b.canonical_unit, param
+
+
+class TestMissingChunkSignalling:
+    """404 means absent. 403 must never be silently read as absent.
+
+    On the CMEMS buckets a denied request and a nonexistent key return an
+    identical AccessDenied body, and the same chunk has been observed returning
+    200 and later 403 within one session. Treating a denial as "no data" would
+    silently drop real observations.
+    """
+
+    @pytest.mark.parametrize("kind", ["not_found"])
+    def test_omitted_chunk_reads_as_absent(self, kind):
+        meta = json.loads((FIXTURES / "wav_zmetadata.json").read_text())
+
+        class Http:
+            def get_bytes(self, url):
+                if url.endswith("/.zmetadata"):
+                    return json.dumps(meta).encode()
+                raise ZarrError(kind, url.rsplit("/", 1)[-1])
+
+        store = ZarrStore("https://example.invalid/wav.zarr", Http())
+        assert store._chunk(store.array("VHM0"), (0, 0, 0)) is None
+
+    def test_denied_chunk_raises_rather_than_reading_as_absent(self):
+        meta = json.loads((FIXTURES / "wav_zmetadata.json").read_text())
+
+        class Http:
+            def get_bytes(self, url):
+                if url.endswith("/.zmetadata"):
+                    return json.dumps(meta).encode()
+                raise ZarrError("forbidden", "AccessDenied")
+
+        store = ZarrStore("https://example.invalid/wav.zarr", Http())
+        with pytest.raises(ZarrError) as e:
+            store._chunk(store.array("VHM0"), (0, 0, 0))
+        assert e.value.kind == "forbidden"
+
+    def test_metadata_rejection_is_still_an_auth_failure(self):
+        class Http:
+            def get_bytes(self, url):
+                raise ZarrError("forbidden", "denied")
+
+        store = ZarrStore("https://example.invalid/wav.zarr", Http())
+        with pytest.raises(ZarrError) as e:
+            store.array("VHM0")
+        assert e.value.kind == "forbidden"
