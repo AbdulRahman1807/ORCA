@@ -13,11 +13,14 @@ from zoneinfo import ZoneInfo
 
 from ..adapters.cmems.adapter import CmemsAdapter
 from ..adapters.incois_erddap.adapter import IncoisErddapAdapter
+from ..adapters.marineregions.adapter import MarineRegionsAdapter
 from ..assessment.engine import EvidencePool, assess_domain
+from ..assessment.regulatory import assess_regulatory
 from ..geospatial.derive import derive_from_envelope, derive_ratio_to_local_median
 from ..assessment.synthesis import synthesise
 from ..schemas.core import SpatialRef
 from ..schemas.enums import Domain, Verdict
+from ..tools.boundaries import get_maritime_boundaries
 from ..tools.marine import get_currents, get_wave_conditions
 from ..tools.ocean import get_chlorophyll, get_ocean_observations, get_sst
 
@@ -88,6 +91,13 @@ def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
     pool = EvidencePool()
     derived_note: list[str] = []
     print("RETRIEVAL")
+    with MarineRegionsAdapter() as boundaries:
+        boundary_env = get_maritime_boundaries(lat, lon, adapter=boundaries)
+    codes = ",".join(sorted({c.value for c in boundary_env.codes()})) or "-"
+    print(f"  {'get_maritime_boundaries':24} {boundary_env.status.value:8} "
+          f"{boundary_env.timing.duration_ms:>5} ms  "
+          f"{boundary_env.source_resolution.actual_source or '-'}  [{codes}]")
+
     with IncoisErddapAdapter() as erddap, CmemsAdapter() as cmems:
         calls = [
             ("get_wave_conditions", lambda: get_wave_conditions(lat, lon, when,
@@ -131,6 +141,27 @@ def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
         for n in derived_note:
             print(f"  • {n}")
 
+    print("\nMARITIME BOUNDARIES   (versioned geometry; advisory context only)")
+    if boundary_env.quality.get("snapshot_version"):
+        print(f"  snapshot {boundary_env.quality['snapshot_version']}"
+              f"   near-boundary band {boundary_env.quality['near_boundary_km']:g} km")
+    for d in boundary_env.data:
+        if getattr(d, "parameter", None) != "point_in_boundary":
+            continue
+        det = d.detail
+        inside = "INSIDE " if d.value else "outside"
+        who = (", ".join(str(f["name"]) for f in det["features"]) if det["features"]
+               else (f"nearest {det['nearest']['name']}" if det.get("nearest")
+                     else "no feature within range"))
+        dist = (f"{det['distance_km']:g} km" if det.get("distance_km") is not None
+                else "-")
+        print(f"  {inside} {det['boundary_type']:18} {who}")
+        print(f"          {det['layer']} {det['dataset_version']} "
+              f"({det['effective_year']})   distance {dist}"
+              + ("   NEAR BOUNDARY" if det.get("near_boundary") else ""))
+    for name in boundary_env.quality.get("boundary_types_unavailable", []):
+        print(f"  not evaluated: {name:22} DATASET_UNAVAILABLE")
+
     print("\nEVIDENCE RETRIEVED")
     if not pool.candidates:
         print("  (none)")
@@ -143,24 +174,33 @@ def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
                  if c.node_distance_km else ""))
 
     print("\nASSESSMENTS   (independent by design; never merged into one score)")
-    assessments = []
-    for domain in (Domain.SAFETY, Domain.FISHING_SUITABILITY):
-        res = assess_domain(domain, pool, window_start=window_start,
-                            window_end=window_end, spatial=spatial)
+    assessments, evidence = [], []
+    results = [assess_domain(domain, pool, window_start=window_start,
+                             window_end=window_end, spatial=spatial)
+               for domain in (Domain.SAFETY, Domain.FISHING_SUITABILITY)]
+    results.append(assess_regulatory(boundary_env, window_start=window_start,
+                                     window_end=window_end, spatial=spatial))
+    for res in results:
         a = res.assessment
         assessments.append(a)
+        evidence.extend(res.evidence)
         print(f"\n  {a.domain.value:22} {a.verdict.value:22} confidence={a.confidence.value}")
         print(f"      thresholds  {a.threshold_set}  [{a.threshold_set_status}]")
         for d in a.drivers:
             mark = ">>" if d.contribution == "limiting" else "  "
-            val = f"{d.value:g} {d.unit or ''}".strip() if d.value is not None else "-"
+            if isinstance(d.value, bool):        # a containment, not a magnitude
+                val = "inside" if d.value else "outside"
+            elif d.value is not None:
+                val = f"{d.value:g} {d.unit or ''}".strip()
+            else:
+                val = "-"
             print(f"      {mark} {d.factor:28} {val:14} {d.band or ''}")
         for n in a.not_evaluated:
             print(f"         not evaluated: {n.factor:24} {n.reason}")
         if a.rationale:
             print(f"      {a.rationale}")
 
-    s = synthesise(assessments)
+    s = synthesise(assessments, evidence)
     print(f"\nANSWER   [{s.category}]")
     print(f"  {s.headline}")
     print(f"  disposition: {s.disposition.value}   confidence: {s.confidence.value}")
