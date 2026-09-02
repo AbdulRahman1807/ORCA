@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from ..adapters.cmems.adapter import CmemsAdapter
 from ..adapters.incois_erddap.adapter import IncoisErddapAdapter
 from ..assessment.engine import EvidencePool, assess_domain
-from ..geospatial.derive import derive_from_envelope
+from ..geospatial.derive import derive_from_envelope, derive_ratio_to_local_median
 from ..assessment.synthesis import synthesise
 from ..schemas.core import SpatialRef
 from ..schemas.enums import Domain, Verdict
@@ -45,7 +45,32 @@ def get_wind(lat: float, lon: float, when: datetime, adapter):
     from ..tools.base import collect_point_parameters
     return collect_point_parameters(
         "get_weather", ("eastward_wind", "northward_wind"), lat, lon, when,
-        lambda p: adapter.fetch_point(p, lat, lon, when), SOURCE_ID)
+        lambda sid, p: adapter.fetch_point(p, lat, lon, when), SOURCE_ID)
+
+
+def _local_ratio(env, cmems, lat: float, lon: float, when: datetime):
+    """Express chlorophyll comparatively, against the median of the same field.
+
+    ORCA does not have a validated absolute chlorophyll standard, so the
+    assessment factor is a ratio to the local median rather than a raw value.
+    """
+    from ..adapters.cmems.adapter import CmemsError
+    obs = next((d for d in env.data if d.parameter == "chlorophyll_a"), None)
+    if obs is None:
+        return None, ""
+    prov = next((p for p in env.provenance if p.provenance_id == obs.provenance_id),
+                None)
+    if prov is None or prov.source_id != "S-07":
+        return None, ""          # the local field must come from the same source
+    try:
+        vals, _, _, n = cmems.fetch_local_field("chlorophyll_a", lat, lon, when, 100.0)
+        result, rprov = derive_ratio_to_local_median(obs, prov, vals, 100.0, n)
+    except (CmemsError, ValueError):
+        return None, ""
+    return (result, rprov), (
+        f"chlorophyll_ratio_to_local_median = {result.value} "
+        f"(median {result.detail['local_median']:g} mg m-3 over "
+        f"{n} valid cells within 100 km)")
 
 
 def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
@@ -71,8 +96,9 @@ def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
             ("get_weather", lambda: get_wind(lat, lon, when, cmems)),
             ("get_ocean_observations", lambda: get_ocean_observations(lat, lon, when,
                                                                       adapter=erddap)),
-            ("get_sst", lambda: get_sst(lat, lon, when, adapter=erddap)),
-            ("get_chlorophyll", lambda: get_chlorophyll(lat, lon, when, adapter=erddap)),
+            ("get_sst", lambda: get_sst(lat, lon, when, adapter=erddap, cmems=cmems)),
+            ("get_chlorophyll", lambda: get_chlorophyll(lat, lon, when, adapter=erddap,
+                                                        cmems=cmems)),
         ]
         for name, call in calls:
             env = call()
@@ -84,6 +110,12 @@ def run(lat: float, lon: float, label: str | None, when: datetime) -> int:
                 derived_note.append(
                     f"{', '.join(x.parameter for x in d_data)} derived from "
                     f"{name} components")
+            if name == "get_chlorophyll":
+                d, note = _local_ratio(env, cmems, lat, lon, when)
+                if d:
+                    env.data.extend([d[0]])
+                    env.provenance.extend([d[1]])
+                    derived_note.append(note)
             pool.ingest(env)
             src = env.source_resolution.actual_source or "-"
             fb = " fallback" if env.source_resolution.fallback_used else ""

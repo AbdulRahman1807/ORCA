@@ -93,3 +93,27 @@ class TestSpatialRef:
     def test_out_of_range_point_rejected(self):
         with pytest.raises(ValueError, match="INVALID_LOCATION"):
             SpatialRef.point(lat=95, lon=76)
+
+
+class TestUnits:
+    """Units are read from the source and converted explicitly, never assumed."""
+
+    def test_kelvin_to_celsius(self):
+        from backend.orca.schemas.units import convert
+        # OSTIA publishes analysed_sst in kelvin. A tropical sea is ~301 K.
+        assert convert(301.65, "kelvin", "degC") == pytest.approx(28.5, abs=1e-9)
+
+    def test_alias_spellings_normalise(self):
+        from backend.orca.schemas.units import canonical
+        for raw in ("degrees C", "degree_C", "degs", "Degree C"):
+            assert canonical(raw) == "degC"
+        assert canonical("milligram m-3") == "mg m-3"
+
+    def test_identical_units_are_a_no_op(self):
+        from backend.orca.schemas.units import convert
+        assert convert(1.31, "m", "m") == 1.31
+
+    def test_impossible_conversion_raises_rather_than_passing_through(self):
+        from backend.orca.schemas.units import UnitError, convert
+        with pytest.raises(UnitError):
+            convert(5.0, "m s-1", "degC")

@@ -157,6 +157,7 @@ class Provenance(BaseModel):
     spatial_resolution: str | None = None
     temporal_resolution: str | None = None
     quality: QualityMetadata = Field(default_factory=QualityMetadata)
+    uncertainty: "Uncertainty | None" = None
 
     fallback_used: bool = False
     fallback_reason: str | None = None

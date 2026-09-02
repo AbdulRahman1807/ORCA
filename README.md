@@ -9,13 +9,14 @@ reasons across them, and says plainly what it does not know.
 ## Status
 
 Design documents 01–22 are complete (`0*.md`, `1*.md`, `2*.md`).
-Implementation is at **Phase 1–6 partial — ~40% of backend logic**.
+Implementation is at **Phase 1–6 partial — ~45% of backend logic**.
 
 | Component | State |
 |---|---|
 | Canonical schema (`schemas/`) | ✅ provenance invariant, error taxonomy, assessment types |
 | INCOIS ERDDAP adapter (`adapters/incois_erddap/`) | ✅ live, verified |
-| CMEMS adapter (`adapters/cmems/`) | ✅ live — waves, currents, wind via ARCO/Zarr |
+| CMEMS adapter (`adapters/cmems/`) | ✅ live — waves, currents, wind, SST, chlorophyll |
+| Cross-source fallback | ✅ time-aware source selection, recorded in provenance |
 | Capability tools (`tools/`) | ✅ 6 of 11 P0 |
 | Geospatial kernel (`geospatial/`) | ◐ geodesy, temporal alignment, derivations |
 | Assessment engine (`assessment/`) | ✅ thresholds, sufficiency, verdicts, confidence, synthesis |
@@ -45,7 +46,13 @@ python3 -m venv .venv && ./.venv/bin/pip install pydantic httpx certifi truststo
 4. Assesses SAFETY and FISHING_SUITABILITY **independently** against versioned threshold
    sets, applying worst-factor-governs (never averaging), and refuses to issue a verdict
    when a required input is missing.
-5. Synthesises a headline that names the limiting factor across domains.
+5. Falls back across sources when the primary cannot serve the requested time,
+   choosing the source closest to that time and recording the switch.
+6. Synthesises a headline that names the limiting factor across domains.
+
+Today it produces a live `FISHING_SUITABILITY = FAVOURABLE` verdict from current CMEMS
+chlorophyll, while `SAFETY` correctly returns `INSUFFICIENT_EVIDENCE` — an official
+warning has no substitute, and none is reachable without IMD credentials.
 
 An official marine warning, when present, overrides ORCA's own thresholds — ORCA conveys
 and contextualises the authority rather than competing with it.

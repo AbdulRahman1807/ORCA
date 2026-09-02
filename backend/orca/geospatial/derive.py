@@ -89,3 +89,54 @@ def derive_from_envelope(env):
         data.extend(d)
         provenance.extend(p)
     return data, provenance
+
+
+def derive_ratio_to_local_median(obs, obs_prov: Provenance, local_values,
+                                 radius_km: float, cell_count: int):
+    """Express a value as a ratio to the local median of the same field.
+
+    Comparative, not absolute: ORCA states "above the local median for this
+    field", never "high", which would imply a standard it has not validated.
+    """
+    import numpy as np
+
+    median = float(np.median(local_values))
+    if median <= 0:
+        raise ValueError("local median is not positive; ratio is undefined")
+    ratio = float(obs.value) / median
+
+    param = f"{obs.parameter.replace('_a', '')}_ratio_to_local_median"
+    if obs.parameter == "chlorophyll_a":
+        param = "chlorophyll_ratio_to_local_median"
+
+    d = derivation("ratio_to_local_median", [obs_prov.provenance_id],
+                   {"statistic": "median", "radius_km": radius_km,
+                    "valid_cells": cell_count, "median": round(median, 6),
+                    "unit": obs.unit},
+                   module="derive")
+    pid = _pid(param, obs_prov.provenance_id, str(round(median, 6)))
+    quality = QualityMetadata(
+        flag=obs.quality.flag, basis="orca-computed",
+        nearest_node_distance_km=obs.quality.nearest_node_distance_km,
+        freshness=obs.quality.freshness)
+    quality.add_check("local_sample_size", "pass" if cell_count >= 50 else "fail",
+                      f"{cell_count} valid cells within {radius_km:g} km")
+
+    prov = Provenance(
+        provenance_id=pid, parameter=param, value_kind=ValueKind.DERIVED,
+        unit="ratio", spatial=obs.spatial, temporal=obs.temporal,
+        source=obs_prov.source, source_id=obs_prov.source_id,
+        organisation=obs_prov.organisation, dataset=obs_prov.dataset,
+        access_method=obs_prov.access_method,
+        external_source=obs_prov.external_source, retrieved_at=utcnow(),
+        quality=quality, derivation=d,
+        notes=(f"{obs.parameter} relative to the median of {cell_count} valid "
+               f"cells within {radius_km:g} km"),
+        licence_reference=obs_prov.licence_reference)
+    result = DerivedResult(
+        parameter=param, value=round(ratio, 4), unit="ratio",
+        spatial=obs.spatial, temporal=obs.temporal, quality=quality,
+        provenance_id=pid,
+        detail={"local_median": round(median, 6), "radius_km": radius_km,
+                "valid_cells": cell_count})
+    return result, prov

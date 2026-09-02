@@ -14,8 +14,10 @@ from typing import Any
 import numpy as np
 
 from ...schemas.core import (
-    Provenance, QualityMetadata, SpatialRef, TemporalRef, haversine_km, utcnow,
+    Provenance, QualityMetadata, SpatialRef, TemporalRef, Uncertainty,
+    haversine_km, utcnow,
 )
+from ...schemas import units as U
 from ...schemas.data import Forecast
 from ...schemas.enums import Freshness, QualityFlag, ValueKind
 from ...schemas.errors import ErrorCode
@@ -126,6 +128,48 @@ class CmemsAdapter:
                 best = (float(block[dy, dx]), iy2, ix2, km)
         return best
 
+    def fetch_local_field(self, parameter: str, lat: float, lon: float,
+                          valid_time: datetime, radius_km: float = 100.0):
+        """Read a neighbourhood of valid values around a point.
+
+        Returns (values, binding, actual_time, cell_count). Used to express a
+        value COMPARATIVELY -- "above the local median for this field" -- rather
+        than against an absolute standard ORCA has not validated
+        (12_RISK_AND_RECOMMENDATION_SPEC.md section 5.3).
+        """
+        bindings = BINDINGS.get(parameter)
+        if not bindings:
+            raise CmemsError(ErrorCode.DATASET_UNAVAILABLE,
+                             f"no CMEMS binding for parameter {parameter!r}")
+        binding = bindings[0]
+        store = self._store(binding)
+        lats = store.read_coord("latitude")
+        lons = store.read_coord("longitude")
+        times = self._time_axis(store, binding)
+
+        q_lon = lon if lon <= 180.0 else lon - 360.0
+        iy, _ = nearest_index(lats, lat)
+        ix, _ = nearest_index(lons, q_lon)
+        t_arr = np.array([t.timestamp() for t in times])
+        it, _ = nearest_index(t_arr, valid_time.timestamp())
+
+        lat_step_km = abs(float(lats[1] - lats[0])) * 111.32
+        half = max(1, int(radius_km / max(lat_step_km, 1e-6)))
+        meta = store.array(binding.variable)
+        index = {"time": it, "latitude": iy, "longitude": ix}
+        if "elevation" in meta.dims:
+            index["elevation"] = 0
+        block, _ = store.read_window(binding.variable, index,
+                                     {"latitude": half, "longitude": half})
+        vals = block[~np.isnan(block)]
+        if vals.size == 0:
+            raise CmemsError(ErrorCode.NO_DATA,
+                             f"{parameter}: no valid cells within {radius_km:g} km")
+        published_unit = meta.units or binding.canonical_unit
+        vals = np.array([U.convert(float(v), published_unit, binding.canonical_unit)
+                         for v in vals])
+        return vals, binding, times[it], int(vals.size)
+
     # -- public API ------------------------------------------------------------
 
     def fetch_point(self, parameter: str, lat: float, lon: float,
@@ -204,7 +248,35 @@ class CmemsAdapter:
                 f"{lats[iy]:.3f}N {lons[ix]:.3f}E")
             index = {**index, "latitude": iy, "longitude": ix}
 
+        # Read the published unit and convert explicitly. Never assume.
         published_unit = meta.units or binding.canonical_unit
+        try:
+            value = U.convert(value, published_unit, binding.canonical_unit)
+        except U.UnitError as exc:
+            raise CmemsError(ErrorCode.ADAPTER_ERROR,
+                             f"{binding.variable}: {exc}") from exc
+
+        # Source-published uncertainty, where the product provides it.
+        uncertainty = None
+        if binding.uncertainty_variable:
+            try:
+                unc = store.read_point(binding.uncertainty_variable, index)
+            except ZarrError:
+                unc = None
+            if unc is not None:
+                u_meta = store.array(binding.uncertainty_variable)
+                u_unit = u_meta.units
+                if binding.uncertainty_kind == "std_dev" and U.convertible(
+                        u_unit, binding.canonical_unit):
+                    # An error in kelvin is a magnitude, not a temperature:
+                    # convert the scale, not the offset.
+                    if U.canonical(u_unit) == "K" and binding.canonical_unit == "degC":
+                        u_unit = "degC"
+                uncertainty = Uncertainty(value_uncertainty={
+                    "type": binding.uncertainty_kind, "value": round(unc, 4),
+                    "unit": u_unit, "basis": "source-provided",
+                    "variable": binding.uncertainty_variable})
+
         flag = QualityFlag.NOMINAL
         lo, hi = PLAUSIBLE.get(binding.parameter, (-np.inf, np.inf))
         if not (lo <= value <= hi):
@@ -222,7 +294,8 @@ class CmemsAdapter:
             freshness=Freshness.FRESH if abs(lead_h) < 72 else Freshness.AGING,
             staleness_s=max(0.0, (now - actual_time).total_seconds()),
         )
-        quality.add_check("unit_read_from_store", "pass", f"published={published_unit!r}")
+        quality.add_check("unit_read_from_store", "pass",
+                          f"published={published_unit!r} -> {binding.canonical_unit!r}")
         quality.add_check("plausibility_range", "pass" if flag is QualityFlag.NOMINAL
                           else "fail", f"{lo}..{hi}")
         quality.add_check("nearest_node", "pass", f"{node_km:.2f} km from request")
@@ -253,11 +326,13 @@ class CmemsAdapter:
             spatial_resolution="0.083 deg (1/12 deg)",
             temporal_resolution=f"PT{int(step_h)}H",
             quality=quality, notes=binding.note,
+            uncertainty=uncertainty,
             licence_reference=ATTRIBUTION,
         )
         obs = Forecast(
             parameter=binding.parameter, value=round(value, 4),
             unit=binding.canonical_unit,
             value_kind=ValueKind.FORECAST if is_forecast else ValueKind.OBSERVED,
-            spatial=spatial, temporal=temporal, quality=quality, provenance_id=pid)
+            spatial=spatial, temporal=temporal, quality=quality,
+            uncertainty=uncertainty, provenance_id=pid)
         return CmemsPointResult([obs], [prov], codes, notes, binding.dataset_id)

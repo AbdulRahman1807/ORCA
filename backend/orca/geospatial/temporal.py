@@ -66,7 +66,8 @@ def interval_intersects(a_from: datetime, a_to: datetime,
 
 def align(valid_time: datetime, representativeness: R, *,
           window_start: datetime, window_end: datetime,
-          domain: Domain) -> AlignmentDecision:
+          domain: Domain,
+          usable_age_days: float | None = None) -> AlignmentDecision:
     """Decide whether a value may serve as primary evidence for a domain.
 
     Two independent tests, both of which must pass:
@@ -74,9 +75,15 @@ def align(valid_time: datetime, representativeness: R, *,
       2. does its validity actually reach the analysis window?
     """
     cadence = CADENCE_DAYS.get(representativeness, 1.0)
-    # A product is valid over its own cadence, centred on its stated valid_time.
-    half = timedelta(days=cadence / 2)
-    reaches = interval_intersects(valid_time - half, valid_time + half,
+    # A product informs a window over its own cadence, optionally widened by a
+    # per-parameter policy (config/staleness.yaml). The widening is explicit
+    # configuration, never an implicit consequence of cadence.
+    # Ageing is ASYMMETRIC: a value remains informative for some time AFTER its
+    # valid time, but says nothing about the period before it was measured.
+    back = timedelta(days=cadence / 2)
+    forward = timedelta(days=max(cadence / 2, usable_age_days or 0.0))
+    half_days = forward.total_seconds() / 86400.0
+    reaches = interval_intersects(valid_time - back, valid_time + forward,
                                   window_start, window_end)
 
     if valid_time < window_start:
@@ -96,7 +103,7 @@ def align(valid_time: datetime, representativeness: R, *,
     if not reaches:
         return AlignmentDecision(
             Alignment.OUT_OF_WINDOW,
-            f"validity (+/-{cadence / 2:g} d around {valid_time.date()}) does not reach "
+            f"validity (+/-{half_days:g} d around {valid_time.date()}) does not reach "
             f"the analysis window {window_start.date()}..{window_end.date()}"
             f"; {abs(offset):,.0f} days away",
             offset, representativeness,

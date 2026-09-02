@@ -22,6 +22,7 @@ from ..schemas.enums import (
 from ..schemas.envelope import OrcaEnvelope
 from ..schemas.errors import ErrorCode
 from . import thresholds as th
+from .staleness import usable_age_days
 
 #: Threshold factor  ->  (canonical parameter, transform)
 #: Some factors are a function of a parameter rather than the parameter itself.
@@ -243,7 +244,8 @@ def assess_domain(domain: Domain, pool: EvidencePool, *,
         #    validity reach the analysis window?
         decision = align(cand.valid_time, cand.representativeness,
                          window_start=window_start, window_end=window_end,
-                         domain=domain)
+                         domain=domain,
+                         usable_age_days=usable_age_days(factor))
         if not decision.usable_as_primary:
             not_evaluated.append(NotEvaluated(
                 factor=factor,

@@ -1,0 +1,31 @@
+# How old a value may be and still inform a given domain.
+#
+# STATUS: SCIENTIFIC_VALIDATION_REQUIRED. These are initial engineering
+# parameters. They encode the fact that different variables age at different
+# rates for different purposes: a wind observation from two days ago tells you
+# nothing about tomorrow's safety, whereas a two-day-old ocean-colour composite
+# is normal input to a fishing-productivity judgement, because phytoplankton
+# fields persist and satellite ocean colour is cloud-limited.
+#
+# `usable_age_days` widens the validity interval used by the temporal alignment
+# gate. It does not suppress the STALE_DATA flag, and the age is always
+# reported.
+
+defaults:
+  usable_age_days: 0.5
+
+parameters:
+  significant_wave_height: {usable_age_days: 0.25, note: "forecast variable; must cover the window"}
+  swell_height:            {usable_age_days: 0.25}
+  peak_period:             {usable_age_days: 0.25}
+  current_speed:           {usable_age_days: 0.25}
+  wind_speed:              {usable_age_days: 0.25, note: "an old wind observation cannot describe a future window"}
+  wind_gust:               {usable_age_days: 0.25}
+
+  # Satellite fields: cloud-limited and slowly varying. Ageing tolerance here
+  # reflects operational practice for productivity advisories, not convenience.
+  chlorophyll_ratio_to_local_median: {usable_age_days: 4.0, note: "gap-free ocean colour L4 runs 2-4 days behind; the field persists"}
+  chlorophyll_a:                     {usable_age_days: 4.0}
+  sst_anomaly_abs:                   {usable_age_days: 4.0}
+  sst:                               {usable_age_days: 4.0}
+  pfz_distance_km:                   {usable_age_days: 3.0, note: "PFZ advisories are issued daily and are explicitly dated"}

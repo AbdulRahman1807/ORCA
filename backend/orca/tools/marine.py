@@ -32,7 +32,8 @@ def get_wave_conditions(lat: float, lon: float, valid_time: datetime, *,
     try:
         return collect_point_parameters(
             "get_wave_conditions", variables, lat, lon, valid_time,
-            lambda p: adapter.fetch_point(p, lat, lon, valid_time), SOURCE_ID)
+            lambda sid, p: adapter.fetch_point(p, lat, lon, valid_time),
+            SOURCE_ID)
     finally:
         if own:
             adapter.close()
@@ -51,7 +52,8 @@ def get_currents(lat: float, lon: float, valid_time: datetime, *,
     try:
         return collect_point_parameters(
             "get_currents", variables, lat, lon, valid_time,
-            lambda p: adapter.fetch_point(p, lat, lon, valid_time), SOURCE_ID)
+            lambda sid, p: adapter.fetch_point(p, lat, lon, valid_time),
+            SOURCE_ID)
     finally:
         if own:
             adapter.close()

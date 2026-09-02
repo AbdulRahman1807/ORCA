@@ -18,6 +18,7 @@ METHODS: dict[str, str] = {
     "vector_magnitude_direction": "1.0",
     "anomaly_vs_window_mean": "1.0",
     "field_area_statistics": "1.0",
+    "ratio_to_local_median": "1.0",
     "temporal_alignment": "1.0",
     "point_in_polygon": "1.0",
 }

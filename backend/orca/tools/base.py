@@ -99,16 +99,40 @@ class ToolRun:
 
 def collect_point_parameters(tool: str, parameters, lat: float, lon: float,
                              valid_time, fetch, source_id: str):
-    """Shared body for point-query capability tools.
+    """Single-source point query (thin wrapper over the multi-source form)."""
+    return collect_from_sources(tool, parameters, lat, lon, valid_time,
+                                [(source_id, fetch)])
 
-    `fetch(parameter) -> result` must return an object with `.observations`,
-    `.provenance`, `.codes`, `.notes` and `.dataset_id`, and raise an exception
-    carrying a canonical `.code` on failure.
+
+#: Codes that make a result unusable FOR THE REQUESTED TIME, and therefore
+#: justify trying the next source. Distinct from transport failures: the primary
+#: answered correctly, it simply does not cover what was asked for.
+_UNUSABLE_FOR_REQUEST = "unusable_for_request"
+
+
+def collect_from_sources(tool: str, parameters, lat: float, lon: float,
+                         valid_time, sources, *, fallback_on_stale: bool = True):
+    """Point query across an ordered list of sources.
+
+    `sources` is [(source_id, fetch), ...] in preference order. For each
+    parameter the first source is tried; the next is tried only when the result
+    is unusable, and any switch is recorded in `source_resolution` so the answer
+    can state which source actually served it.
+
+    Fallback is attempted on transport failure (SOURCE_UNAVAILABLE, TIMEOUT,
+    RATE_LIMITED), on NO_DATA, and -- when `fallback_on_stale` -- on results that
+    fall outside the requested window. It is NEVER attempted on AUTH_REQUIRED:
+    a credential problem is not fixed by silently switching authority.
     """
     from ..schemas.enums import EnvelopeStatus
-    from ..schemas.errors import ErrorCode, OrcaError
+    from ..schemas.errors import ErrorCode, FALLBACK_CODES, OrcaError
 
-    run = ToolRun(tool, primary_source=source_id)
+    eligible = set(FALLBACK_CODES) | {ErrorCode.NO_DATA}
+    if fallback_on_stale:
+        eligible |= {ErrorCode.STALE_DATA, ErrorCode.INSUFFICIENT_COVERAGE}
+
+    primary_id = sources[0][0] if sources else None
+    run = ToolRun(tool, primary_source=primary_id)
     try:
         validate_point(lat, lon)
     except ToolInputError as exc:
@@ -116,23 +140,72 @@ def collect_point_parameters(tool: str, parameters, lat: float, lon: float,
 
     data, provenance, errors, notes = [], [], [], []
     satisfied = 0
+    served_by: set[str] = set()
+
+    def _distance_from_request(res) -> float:
+        """How far the served value sits from the requested time, in seconds."""
+        best = None
+        for obs in getattr(res, "observations", []):
+            vt = getattr(getattr(obs, "temporal", None), "valid_time", None)
+            if vt is None:
+                continue
+            d = abs((vt - valid_time).total_seconds())
+            best = d if best is None else min(best, d)
+        return best if best is not None else float("inf")
 
     for param in parameters:
-        try:
-            res = fetch(param)
-        except Exception as exc:                       # adapters raise typed errors
-            code = getattr(exc, "code", ErrorCode.ADAPTER_ERROR)
-            detail = getattr(exc, "detail", str(exc))
-            run.attempt(source_id, code.value, detail[:160])
-            errors.append(OrcaError(code=code, subject=param, tool=tool,
-                                    detail=detail[:300], source_id=source_id,
-                                    severity="warning"))
+        attempts: list[tuple[str, object]] = []
+        chosen = None
+        chosen_distance = float("inf")
+        for source_id, fetch in sources:
+            try:
+                res = fetch(source_id, param)
+            except Exception as exc:
+                code = getattr(exc, "code", ErrorCode.ADAPTER_ERROR)
+                detail = getattr(exc, "detail", str(exc))
+                run.attempt(source_id, code.value, detail[:160])
+                attempts.append((source_id, OrcaError(
+                    code=code, subject=param, tool=tool, detail=detail[:300],
+                    source_id=source_id, severity="warning")))
+                if code is ErrorCode.AUTH_REQUIRED or code not in eligible:
+                    break
+                continue
+
+            unusable = any(c in eligible for c in res.codes)
+            run.attempt(source_id, "degraded" if unusable else "success",
+                        f"{param} via {res.dataset_id}")
+            attempts.append((source_id, res))
+            if not unusable:
+                chosen = (source_id, res)
+                break
+            # Every source so far is degraded. Keep whichever sits closest to the
+            # requested time -- a 2020 archive value is not equivalent to one from
+            # last week just because both are flagged stale.
+            d = _distance_from_request(res)
+            if d < chosen_distance:
+                chosen, chosen_distance = (source_id, res), d
+
+        if chosen is None:
+            errors.extend(a for _, a in attempts if isinstance(a, OrcaError))
             continue
 
+        source_id, res = chosen
         satisfied += 1
+        served_by.add(source_id)
         data.extend(res.observations)
         provenance.extend(res.provenance)
-        run.attempt(source_id, "success", f"{param} via {res.dataset_id}")
+
+        used_fallback = primary_id is not None and source_id != primary_id
+        if used_fallback:
+            reason = next((a.code.value for sid, a in attempts
+                           if sid == primary_id and isinstance(a, OrcaError)),
+                          "unusable for the requested time")
+            for pv in res.provenance:
+                pv.fallback_used = True
+                pv.fallback_reason = reason
+            notes.append({"code": "FALLBACK_USED", "subject": param,
+                          "detail": f"{primary_id} could not serve {param} "
+                                    f"({reason}); used {source_id}"})
         for code in res.codes:
             errors.append(OrcaError(code=code, subject=param, tool=tool,
                                     source_id=source_id, severity="warning",
@@ -141,7 +214,11 @@ def collect_point_parameters(tool: str, parameters, lat: float, lon: float,
             notes.append({"code": "SOURCE_NOTE", "subject": param, "detail": n})
 
     if satisfied:
-        run.resolved(source_id)
+        actual = next(iter(served_by)) if len(served_by) == 1 else ",".join(
+            sorted(served_by))
+        run.resolved(actual, fallback_reason=(
+            "primary could not serve the requested time"
+            if primary_id and actual != primary_id else None))
 
     if satisfied == 0:
         codes = {e.code for e in errors}
@@ -160,4 +237,5 @@ def collect_point_parameters(tool: str, parameters, lat: float, lon: float,
         EnvelopeStatus.PARTIAL if degraded else EnvelopeStatus.SUCCESS,
         data=data, provenance=provenance, errors=errors, warnings=notes,
         quality={"parameters_requested": len(parameters),
-                 "parameters_satisfied": satisfied})
+                 "parameters_satisfied": satisfied,
+                 "sources_used": sorted(served_by)})
