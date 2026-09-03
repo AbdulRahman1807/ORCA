@@ -1,32 +1,41 @@
-# React + TypeScript + Vite
+# ORCA — web interface
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + TypeScript + Vite. The authoritative design is
+`../02_FRONTEND_DESIGN_SPEC.md`; `../23_FRONTEND_REBUILD_BRIEF.md` records what
+is built and the traps already hit.
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev      # http://localhost:5173, proxies /v1 to :8000
+npm run build    # emits into ../backend/orca/api/webui, served at /ui/
+npm run lint
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The backend must be running for either mode:
+
+```bash
+../.venv/bin/uvicorn backend.orca.api.main:app --port 8000 --reload
+```
+
+`VITE_API_TARGET` overrides the dev proxy target (default `http://localhost:8000`).
+
+## Things that will bite
+
+**The MapLibre worker is bundled explicitly.** `src/lib/maplibre-worker.ts` sets
+`setWorkerUrl` from a `?worker&url` import. maplibre-gl v6 otherwise derives the
+worker path from `import.meta.url` at runtime, which resolves to a file no build
+emits once the library is bundled. The failure is silent and total: raster tiles
+keep working, so the basemap paints while every GeoJSON source — route,
+boundaries, markers — stays unloaded forever. Do not remove that import.
+
+**The map never gates the answer.** Text renders first, map calls are isolated,
+and the initial style carries no remote source (F-51 … F-53). A blocked tile host
+must leave the verdict fully readable.
+
+**A hole stays a hole.** `null` is masked data, never zero: scalar fields
+rasterise it transparent, the particle layer respawns on it, the route corridor
+leaves the segment untinted, and the legend always states coverage.
+
+**Never invent an axis.** Gauges draw the band edges the API returns. Where it
+returns none, the bands are drawn equal-width and marked notional rather than
+given plausible-looking numbers.

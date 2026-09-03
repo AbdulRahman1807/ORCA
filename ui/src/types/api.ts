@@ -18,12 +18,22 @@ export interface ORCAField {
   advisory_only: boolean;
 }
 
+/** `[low, high]`, either end null for an open band. */
+export type BandEdges = [number | null, number | null];
+
 export interface ORCADriver {
   factor: string;
   value: number | boolean | null;
   unit: string | null;
   band: string | null;
   contribution: 'limiting' | 'supporting' | 'context';
+  threshold_id?: string | null;
+  evidence_id?: string | null;
+  // The edges this factor was actually judged against. Present for numeric
+  // factors; absent for booleans, which have no axis. Without them a gauge
+  // can only place the pin inside its band, never at a true position.
+  bands?: Record<string, BandEdges> | null;
+  higher_is_worse?: boolean | null;
 }
 
 export interface ORCAAssessment {
@@ -40,6 +50,38 @@ export interface ORCAAssessment {
   limiting_factor: string | null;
 }
 
+/** One retrieved value's validity, against the analysis window. */
+export interface ORCATemporalEntry {
+  provenance_id: string;
+  tool: string | null;
+  parameter: string | null;
+  value_kind: string | null;
+  source: string | null;
+  source_id: string | null;
+  dataset: string | null;
+  valid_time: string | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  reference_time: string | null;
+  lead_time_h: number | null;
+  representativeness: string | null;
+  retrieved_at: string | null;
+  age_s: number | null;
+  /** Retrieved AND used. A false here is the interesting row. */
+  used: boolean;
+  derived_via: string | null;
+  evidence_id: string | null;
+  domain: string | null;
+  excluded_reason: string | null;
+  excluded_detail: string | null;
+}
+
+export interface ORCATemporalAlignment {
+  window: { start_time: string | null; end_time: string | null };
+  generated_at: string;
+  entries: ORCATemporalEntry[];
+}
+
 export interface ORCAEvidence {
   evidence_id: string;
   domain: string;
@@ -50,6 +92,22 @@ export interface ORCAEvidence {
   value_kind: string;
   provenance_id: string;
   weight: string;
+}
+
+export interface ORCANotEvaluated {
+  factor: string;
+  reason: string;
+  detail: string | null;
+  tool?: string | null;
+}
+
+export interface ORCAPlan {
+  domains: string[];
+  required_evidence: string[];
+  steps: { step_id: string; tool: string; necessity: string }[];
+  /** Capabilities ORCA planned for and could not fill. First-class content. */
+  unavailable: { evidence?: string; tool?: string; reason?: string }[];
+  reasoning_summary: string;
 }
 
 export interface ORCAMapLayer {
@@ -68,13 +126,15 @@ export interface ORCAResponse {
   // The API returns WHICH detail is missing ('location', 'time_window',
   // 'destination', 'intent') or null -- not a boolean.
   clarification_needed?: string | null;
-  plan?: any;
+  plan?: ORCAPlan | null;
   assessments?: ORCAAssessment[];
   evidence?: ORCAEvidence[];
   alerts?: ORCAAlert[];
   map_layers?: ORCAMapLayer[];
   claims?: any[];
-  not_evaluated?: any[];
+  not_evaluated?: ORCANotEvaluated[];
+  temporal_alignment?: ORCATemporalAlignment;
+  resolution_notes?: string[];
   disposition?: string;
   recommendation?: { category: string; headline: string; is_official_advisory: boolean };
   trace?: ORCATraceEvent[];

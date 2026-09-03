@@ -1463,3 +1463,175 @@ correct: the engine's `limiting_factor` was right, the drivers' contributions
 were right *before* the cap, and the renderer faithfully drew what it was given.
 The defect was in the relationship between them, which only shows when a person
 reads the whole answer.
+
+---
+
+## 22. Session 12 — the React rebuild, and the map that drew nothing
+
+The interface was rebuilt on React + TypeScript + Vite (`ui/`, built into
+`backend/orca/api/webui/`, served at `/ui/`). The vanilla UI is kept at
+`/classic`: it is the reference for behaviour that was verified live, and §21
+records nine defects that would otherwise be re-derived.
+
+This session took the rebuild from "ported" to the tier list in
+`23_FRONTEND_REBUILD_BRIEF.md` §6 being complete.
+
+### 22.1 The route was drawn. Nothing rendered it.
+
+Reported as "route is not getting drawn". The backend was fine — `/v1/chat`
+returned `optimized_route` as a 76-point LineString — and so, it turned out, was
+the UI: the `route` source and its layers existed in the style, `fitBounds` had
+run, and all 76 vertices projected on-screen. `queryRenderedFeatures` still
+returned **zero**, and so did a bright red 8 px test line added by hand.
+
+The tell was in which layers worked. The raster basemap painted; every GeoJSON
+source reported `loaded: false` forever, and `map.isStyleLoaded()` never became
+true. GeoJSON is parsed in a **web worker**.
+
+| ID | Finding |
+|---|---|
+| **F-60** | **maplibre-gl v6 resolves its worker path from `import.meta.url` at runtime.** v6 ships the worker as a separate file and, with no explicit URL configured, computes `new URL('./maplibre-gl-worker.mjs', import.meta.url)`. That is correct only when the library is served as loose ESM beside its own siblings. Bundled, `import.meta.url` is the *application* chunk, so the worker resolves to `/ui/assets/maplibre-gl-worker.mjs` — which no build emits, because the specifier is computed inside a conditional and so is invisible to the bundler. It 404s **silently**: no console error, no map error event. Every source parsed in the worker — which is every GeoJSON and vector source — hangs unloaded. |
+
+The failure mode is worth stating plainly because it is the opposite of what it
+looks like: the basemap loads, the tiles are pretty, and only the *data*
+disappears. Route, EEZ boundaries and position markers all vanished together on
+a map that appeared to be working perfectly.
+
+Fixed in `ui/src/lib/maplibre-worker.ts` — `setWorkerUrl()` fed from a
+`?worker&url` import, so Vite bundles the worker (with the ~500 KB
+`maplibre-gl-shared.mjs` a worker cannot share with the main thread) and emits a
+real URL — plus `worker: { format: 'es' }`, since maplibre constructs the worker
+with `{type: 'module'}`. `config.WORKER_URL` takes precedence over the derived
+path, so setting it before the first `Map` is all that is needed.
+
+Two smaller defects fell out of reading the same file:
+
+| ID | Finding |
+|---|---|
+| **F-61** | **The route effect removed the marker LAYERS and the marker effect never rebuilt them.** The marker effect only checked for the marker *source*, which still existed, so it called `setData` on a source that had no layers left. After any route was drawn the origin and destination markers were gone for good. Layer existence is now checked separately from source existence. |
+| **F-62** | **`style.load` and the readiness poll could both complete**, constructing a second `ParticleLayer` over the first and leaking the first one's `move` listener. Guarded with a `ready` flag. |
+
+Once it rendered, the route was still nearly invisible — 2.6 px of pale blue on
+a bright basemap. It now has a dark casing under a tinted corridor (§22.3).
+
+### 22.2 Two things the projection could not say
+
+Both of the brief's highest-value items were blocked on the same thing: the API
+knew something it never sent.
+
+**D-45 · A driver carries the axis it was judged against.**
+`Driver.bands` and `higher_is_worse` now travel with every numeric driver,
+straight from the threshold set that decided the band. Before this the interface
+drew four equal-width bands with the pin at its band's centre — honest, because
+inventing an axis would be inventing a fact, but unable to distinguish a wave
+height at the top of *favourable* from one about to leave it. A boolean has no
+axis and gets no edges; the equal-width fallback stays for that case, marked `≈`
+so it cannot be mistaken for a measured scale.
+
+**D-46 · The temporal strip is built from provenance, not from evidence.**
+`temporal_alignment` reports every value that was RETRIEVED, its own validity
+window, its true age, whether it was used, and if not, why not. Building it from
+evidence would have been easier and would have made the panel useless: evidence
+is the list of survivors, so a strip drawn from it can never show a rejection —
+which is the one thing it exists to show.
+
+Live, near Kochi, it says exactly what §6 of the brief asked for:
+
+```
+sst_anomaly        INCOIS ERDDAP   14.9 yr old   not used — too old for this window
+maritime_boundary  MarineRegions   ×4  3.7 yr old  used
+chlorophyll_a      CMEMS            2.3 d old    used
+chlorophyll_ratio… CMEMS            2.3 d old    used · derived by ratio_to_local_median
+sst                CMEMS             32 h old    not used — too old for this window
+current_speed      CMEMS           16 h ahead    used · derived · +16.1 h lead
+```
+
+Two details in there are load-bearing. A **derived value's inputs count as
+used** — the raw chlorophyll is the reason the ratio exists, and marking it
+unused would have put the strip's central distinction on the wrong row; the
+lineage is walked through `Derivation.inputs`, with a cycle guard. And the
+exclusion reason is joined across the **factor/parameter name gap**
+(`sst_anomaly_abs` is judged from `sst_anomaly`), because an exact join silently
+dropped precisely the rows whose refusal needed explaining.
+
+A 2011 observation beside a forecast for tomorrow spans fifteen years, on which
+every current source collapses to a single pixel. The axis is therefore drawn
+over the recent span and anything older is pinned to the left edge, hatched, and
+labelled with its true age — never rescaled to look as though it were in range.
+
+### 22.3 The rest of the tier list
+
+* **Chlorophyll local-median ring** (T1 #3) — marching squares in `lib/geo.ts`,
+  contoured at the field's own median. FISHING judges the *ratio* to the local
+  median, so the ring is the comparison the verdict actually made. A cell with
+  any masked corner is skipped: no contour is traced through data that was never
+  collected.
+* **Route corridor** (T2 #8) — wave height sampled per segment and coloured on
+  the small-craft band edges. A segment over a hole stays grey and the legend
+  says so. The wave fetch happens *after* the route is drawn and can never gate
+  it. Kochi→Chennai: 39 of 75 segments tinted, 0.41–1.89 m.
+* **Geofence range rings** (T2 #9) — geodesic rings per alert, coloured by
+  severity, so "0.8 km from the EEZ" and the boundary line are finally in the
+  same frame.
+* **Provenance as a chain** (T2 #6) — L1 source → L2 derivation → L3 value. A
+  value with no derivation gets an explicit "as published" L2 rather than a
+  blank step, which would imply a computation happened.
+* **Source constellation** (T2 #7) — capabilities grouped by the domain they
+  serve. An unbound one stays visible and dashed with its reason; dropping it
+  would make the map of what ORCA can do look complete.
+* **Disagreement panel** (T2 #10) — both vocabularies share one severity ladder
+  and a spread of two bands or more raises a panel. `UNKNOWN` and
+  `INSUFFICIENT_EVIDENCE` are deliberately **off** the ladder: not knowing is a
+  gap, not a position that can disagree with one.
+* **Freshness dots and confidence** (T3) — age is carried by the dot's ring as
+  well as its hue, never by colour alone, and the text is always present too.
+  Confidence softens the card edge and the verdict word; the numbers stay
+  exactly as readable.
+
+### 22.4 Three ways the port had gone quiet
+
+Each was individually small and each broke a §4 rule the backend works hard to
+uphold.
+
+| ID | Finding |
+|---|---|
+| **F-63** | **`dataset_version` and `advisory only` were rendered only when an alert carried a distance.** An `inside` alert has no distance — so the one alert that most needs to say which snapshot it came from was the one that did not. |
+| **F-64** | **Evidence was truncated at twelve with no indication.** A silent cap reads as "that was all the evidence there was". It now says how many more there are. |
+| **F-65** | **`plan.unavailable`, `not_evaluated` and `resolution_notes` were fetched and never rendered.** §4 calls the first two first-class content. The fishing query plans four capabilities it cannot fill — thermal fronts, cyclone distance, lightning, official warnings — and the answer said nothing about them. Now: a *Planned for, not available* section, a collapsible *Not evaluated* list, and the resolution notes under the headline, so how the question was read is visible. |
+
+Also: the evidence provenance id was a `<span>` with an `onClick`, which no
+keyboard or screen reader could reach. It is a `<button>`.
+
+### 22.5 Not fixed, and why
+
+`ui/` had never been installed in this checkout, and the committed bundle turned
+out to be **stale relative to `ui/src/`** — it still contained a single `here`
+marker layer where the source has had `here-origin`/`here-dest` for some time.
+A committed build artefact that no one can reproduce is a trap; there is no CI
+step that rebuilds it. Left as-is, but worth a decision.
+
+The install list in §9 and in the README is also incomplete: it omits `fastapi`
+and `uvicorn`, so the server the frontend brief tells you to start cannot be
+started by following the documented steps. There is no pinned requirements file
+at all.
+
+### 22.6 A pre-existing bug this session did not touch
+
+Ten tests in `tests/graph/test_graph_flow.py` and one in `tests/api/` fail on
+`main`, and have nothing to do with the interface. They fail because location
+resolution is broken for a very common phrasing:
+
+```
+is it safe to go out near Kochi tomorrow morning?   -> clarification_needed: location
+is it good for fishing near Kochi tomorrow morning? -> near Kochi
+```
+
+`_route_endpoints` matches a bare `\bto\s+(.{2,40}?)$` as a route destination,
+so the infinitive in "safe **to** go out" makes `kochi` the destination; it is
+then excluded from origin matching and nothing resolves. Every query containing
+`to` before a place name is affected — "is it safe to sail near Chennai", "do I
+need to worry about waves near Mumbai" — including the first item on the brief's
+own verification checklist.
+
+The fix belongs in intent parsing, not in the interface, and changing route
+detection has real blast radius, so it was left alone and is recorded here.

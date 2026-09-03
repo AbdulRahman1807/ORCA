@@ -343,7 +343,12 @@ def assess_domain(domain: Domain, pool: EvidencePool, *,
             weight="primary" if factor in tset.required_factors else "supporting"))
         drivers.append(Driver(
             factor=factor, value=val, unit=spec.unit, band=band,
-            threshold_id=f"{set_id}:{factor}", evidence_id=eid))
+            threshold_id=f"{set_id}:{factor}", evidence_id=eid,
+            # The edges travel WITH the driver so a gauge can place the value
+            # on the real axis it was judged against rather than a drawn-to-fit
+            # one. They are the same numbers the band decision used.
+            bands={b: list(rng) for b, rng in spec.bands.items()},
+            higher_is_worse=spec.higher_is_worse))
         usable_count += 1
         if factor in tset.required_factors:
             usable_required.add(factor)

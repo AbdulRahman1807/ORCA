@@ -1,7 +1,8 @@
 # ORCA — Frontend Rebuild Brief (React)
 
 **Document:** 23 of 30 · **Date:** 2026-09-03
-**Status:** Brief for a rebuild. The current UI works; this describes replacing it.
+**Status:** The React rebuild is done and the tier work below is complete.
+Section 6 records what is built; the vanilla UI is retained at `/classic`.
 
 ---
 
@@ -73,7 +74,8 @@ resolution_notes[], clarification_needed,
 plan { domains[], required_evidence[], steps[{step_id, tool, necessity}],
        unavailable[{evidence, tool, reason}], reasoning_summary },
 assessments[ { domain, verdict, confidence, rationale,
-               drivers[{factor, value, unit, band, contribution}],
+               drivers[{factor, value, unit, band, contribution,
+                        bands{band: [low, high]}?, higher_is_worse?}],
                not_evaluated[{factor, reason, detail}],
                missing_required[], verdict_capped_by[], limiting_factor } ],
 evidence[{evidence_id, domain, statement, parameter, value, unit,
@@ -81,8 +83,22 @@ evidence[{evidence_id, domain, statement, parameter, value, unit,
 alerts[{kind, boundary_type, severity, distance_km, inside, name,
         dataset_version, advisory_only}],
 map_layers[{id, type, name, data /* GeoJSON Feature */}],
+temporal_alignment {
+  window {start_time, end_time}, generated_at,
+  entries[{ provenance_id, tool, parameter, value_kind, source, source_id,
+            dataset, valid_time, valid_from, valid_to, reference_time,
+            lead_time_h, representativeness, retrieved_at, age_s,
+            used, derived_via, evidence_id, domain,
+            excluded_reason, excluded_detail }]
+},
 claims[], not_evaluated[], disposition, recommendation, trace[]
 ```
+
+`temporal_alignment` is built from **provenance**, not from evidence, so a value
+that was retrieved and then refused still has a row. A strip drawn from evidence
+alone shows only the survivors and can never show a rejection. A derived value's
+inputs are marked `used` too — the raw chlorophyll behind a ratio is the reason
+the ratio exists.
 
 ### 3.2 SSE shape
 
@@ -128,10 +144,11 @@ map reads as calm water.
 boundary that cannot propagate. Three separate bugs came from violating this
 (F-51, F-52, F-53).
 
-**Never invent a scale.** The API returns a driver's *band*, not the band edges.
-The current gauge places the pin inside its band rather than at an absolute
-position, because a made-up axis would be a made-up fact. If you want true
-gauges, add band edges to the API first.
+**Never invent a scale.** A driver now carries its `bands` — the real edges it
+was judged against — so the gauge places the pin at a true position. Where they
+are absent (any boolean; anything without a numeric axis) the bands are drawn
+equal-width and marked `≈`. Do not substitute plausible-looking numbers: a
+made-up axis is a made-up fact.
 
 **Advisory only.** Every boundary, route and PFZ carries `advisory_only: true`
 and a `dataset_version`. Show both. The disclaimer is not decoration.
@@ -178,20 +195,20 @@ Tiers are from the visual plan. **Done** means verified live in a browser.
 | # | Component | Status | Notes |
 |---|---|---|---|
 | 1 | Animated wind / current particles | **Done** | `wind.js`: bilinear sampling, speed-coloured trails, respawn on a hole. Both `wind` and `current`. Lift as-is. |
-| 2 | Live agent trace | **Done, as a timeline** | SSE-driven, all nodes incl. parallel fan-out, per-node source/codes/timing. **Not** a DAG layout — a vertical list. A real node-graph is the upgrade. |
-| 3 | Chlorophyll field | **Partial** | Heatmap with holes and coverage % done. **Missing:** the local-median contour ring that would make D-6's comparative reasoning visible. |
+| 2 | Live agent trace | **Done, as a timeline** | SSE-driven, all nodes incl. parallel fan-out, per-node source/codes/timing. **Not** a DAG layout — a vertical list. A real node-graph remains the upgrade. |
+| 3 | Chlorophyll field | **Done** | Heatmap with holes and coverage %. The local-median contour is drawn as a dashed ring (`lib/geo.ts` marching squares), so the ratio the verdict actually used is visible. A cell with any masked corner is skipped rather than contoured through. |
 
 ### Tier 2 — over data the API already returns
 
 | # | Component | Status | Notes |
 |---|---|---|---|
-| 4 | Threshold band gauges | **Partial** | Four bands drawn, pin positioned, limiting factor marked. Bands are **equal width** and the pin sits at its band's centre, because the API does not return band edges. Real gauges need `04`-style edges added to the projection. |
-| 5 | Temporal alignment strip | **Not started** | Highest-value remaining item. Shows each source's validity window against the analysis window; explains why 2011 SST is rejected and 2-day-old chlorophyll accepted. Data is in `evidence[].value_kind` + provenance `temporal`; may need the projection widening. |
-| 6 | Provenance chain | **Done, flat** | Click an evidence id → source, dataset, access method, derivation with method+version+inputs. **Not** an animated L1→L2→L3 tree. |
-| 7 | Source health | **Done, as a list** | 12 capabilities, 8 available, 4 with reasons. **Not** the constellation visual. |
-| 8 | Route ribbon | **Partial** | Animated dashes + glow + fit-to-bounds done. **Missing:** corridor tinted by wave height along the path. |
-| 9 | Geofence proximity | **Partial** | Alert cards with distance, dataset version, advisory-only. **Missing:** range rings drawn on the map. |
-| 10 | Disagreement panel | **Not started** | Cards are independent and never merged, but divergence gets no special treatment. This is demo segment 6 — worth building when a real disagreement is reachable. |
+| 4 | Threshold band gauges | **Done** | `Driver.bands` and `higher_is_worse` now travel with every numeric driver, so segments have their true widths, the pin sits at its real position and each edge is ticked and labelled. A factor with no numeric axis (any boolean) keeps the equal-width fallback, marked `≈` so it is never mistaken for a measured scale. |
+| 5 | Temporal alignment strip | **Done** | `temporal_alignment` added to the projection, built from **provenance** rather than evidence so a value that was retrieved and then refused still appears. Each row is one value's own validity against the analysis window, with its true age, whether it was used, and why not. Verified live: 2011 INCOIS SST reads `14.9 yr old — too old for this window`; CMEMS chlorophyll at `2.3 d old` reads used, and so does its raw input, reached through the derivation chain. |
+| 6 | Provenance chain | **Done, as a chain** | Drawn as L1 source → L2 derivation → L3 value, in the direction the data travelled, with a connecting rail. A value with no derivation gets an explicit "as published" L2, never a blank step that would imply a computation. |
+| 7 | Source health | **Done, as a constellation** | Grouped by the domain each capability serves, with per-domain counts (SAFETY 3/7, FISHING 4/4, REGULATORY 1/1). An unbound capability stays visible, dashed, carrying its reason — dropping it would make the map of what ORCA can do look complete. |
+| 8 | Route ribbon | **Done** | Dark casing under a wave-tinted corridor, animated dash on top, fit-to-bounds. Wave height is sampled per segment from `/v1/field/waves` and coloured on the small-craft band edges; a segment over a masked cell stays grey and the legend says so rather than inheriting a neighbour's value. The wave fetch happens after the route is drawn and can never gate it. |
+| 9 | Geofence proximity | **Done** | Alert cards plus geodesic range rings on the map, one per alert that carries a distance, coloured by severity. Distance and the map are finally in the same frame. Cards now show `dataset_version` and `advisory only` on **every** alert, not only those with a distance — an `inside` alert had been losing both. |
+| 10 | Disagreement panel | **Done** | Divergence is named without merging anything: both vocabularies share one severity ladder, and a spread of two bands or more raises a panel naming each domain, its verdict and its governing factor. `UNKNOWN` and `INSUFFICIENT_EVIDENCE` are deliberately off the ladder — not knowing is a gap, not a position that can disagree. Adjacent bands do not trigger it. |
 
 ### Tier 3 — texture
 
@@ -203,15 +220,17 @@ Tiers are from the visual plan. **Done** means verified live in a browser.
 | Glassmorphism panels | **Done** |
 | Monospace provenance ids | **Done** |
 | Responsive / narrow-screen stacking | **Done** |
-| Freshness dots decaying with age | **Not started** |
-| Confidence as visual uncertainty (blur/opacity rather than a badge) | **Not started** |
+| Freshness dots decaying with age | **Done** — six levels from `current` to `far outside any useful window`, plus a distinct `forecast` state for a value valid ahead of now. Age is carried by the ring as well as the hue, so the cue never rests on colour alone, and the text is always present too. |
+| Confidence as visual uncertainty (blur/opacity rather than a badge) | **Done** — card border and accent strengthen with confidence and the verdict word takes a sub-pixel blur at LOW. Deliberately subtle: the numbers stay exactly as readable, so only the verdict word and the edge carry it. |
 
 ### Roughly
 
-**Tier 1 ~80 %** · **Tier 2 ~45 %** · **Tier 3 ~75 %**.
-Everything essential to a demo works. What is missing is depth, not function:
-the temporal alignment strip (#5) and true threshold gauges (#4) are the two
-that would most change how the reasoning reads.
+**Tier 1 ~95 %** · **Tier 2 100 %** · **Tier 3 100 %**.
+
+The one thing still open in Tier 1 is the agent trace as a real **node-graph**
+rather than a vertical timeline. It is a genuine upgrade and not a gap: the
+timeline already shows every node, including the parallel fan-out, which is the
+property the panel exists to demonstrate.
 
 ---
 
@@ -228,6 +247,7 @@ that would most change how the reasoning reads.
 | **F-59** | Boolean rendering must be domain-aware (§4). |
 | — | Serve UI assets `no-store`. A stale bundle is indistinguishable from a bug. |
 | — | MapLibre needs a real basemap host: CARTO, Esri and OSM all work without a key; **Mapbox does not** — if you see "API key required", `mapbox-gl` got loaded instead of `maplibre-gl`. |
+| **F-60** | **maplibre-gl v6 resolves its worker from `import.meta.url` at runtime.** Bundled, that points at the application chunk, so the worker resolves to `/ui/assets/maplibre-gl-worker.mjs` — a file no build emits, because the specifier is computed and therefore invisible to the bundler. It 404s with **no console error**, and every source parsed in the worker — which is every GeoJSON and vector source — stays `loaded: false` forever. Raster tiles are unaffected, so the basemap paints normally and only the DATA vanishes: no route, no boundaries, no markers, on a map that looks healthy. `isStyleLoaded()` never becomes true. Fixed by `src/lib/maplibre-worker.ts`: `setWorkerUrl()` from a `?worker&url` import, plus `worker: {format: 'es'}` in the Vite config. **Do not remove that import.** |
 
 ---
 
