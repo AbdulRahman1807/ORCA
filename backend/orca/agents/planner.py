@@ -106,6 +106,32 @@ _KEYWORDS: tuple[tuple[str, str], ...] = (
 )
 
 
+#: Text that makes a query PLAUSIBLY about the marine domain, tested only after
+#: every intent keyword above has already failed to match.
+#:
+#: Deliberately WIDE. The two mistakes here are not symmetric: refusing a real
+#: question a fisher asked is a failure of the product, while asking a
+#: clarifying question about nonsense is merely clumsy. So anything with a
+#: marine noun, a time expression or a coordinate stays in scope, and only text
+#: with no such signal anywhere is called out of scope.
+#:
+#: Places are NOT listed here: the gazetteer lives in the context node, which
+#: applies its own escape before this decision is acted on.
+#: A bare position is a complete marine query on its own.
+_LATLON_HINT = re.compile(r"-?\d{1,3}(\.\d+)?\s*°?\s*[nsew]\b", re.IGNORECASE)
+
+_MARINE_SIGNAL = re.compile(
+    r"\b(sea|ocean|water|waters|coast|coastal|shore|offshore|port|harbou?r|"
+    r"bay|gulf|island|marine|maritime|nautical|knot|knots|fathom|depth|"
+    r"tide|tidal|swell|surf|monsoon|beach|reef|estuary|"
+    r"boat|boats|vessel|ship|trawler|craft|dinghy|canoe|catamaran|anchor|"
+    r"crew|fisher\w*|net|nets|trawl\w*|haul|"
+    r"today|tonight|tomorrow|yesterday|morning|afternoon|evening|night|"
+    r"now|later|hour|hours|day|days|week|weekend|dawn|dusk|noon|"
+    r"north|south|east|west|nm|nautical mile)\b",
+    re.IGNORECASE)
+
+
 def evidence_for(domain: Domain
                  ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
     """(required, preferred, optional) evidence for a domain, from config.
@@ -304,7 +330,23 @@ class PlannerAgent(Agent):
         for pattern, intent in _KEYWORDS:
             if re.search(pattern, text):
                 return intent
-        return UNKNOWN_INTENT
+
+        # Nothing matched. Two very different situations reach here: a marine
+        # question phrased in words the table does not carry ("near Kochi",
+        # "tomorrow morning"), and a query that is not about the sea at all
+        # ("what is c programming"). Treating both as `unknown` meant the
+        # second was answered with "Where are you asking about?", which asserts
+        # that it IS a marine question merely missing a detail.
+        #
+        # Only text this method can actually READ is judged. For a non-English
+        # query whose own lexicon produced no hit above, there is no basis to
+        # call it out of scope, so it stays `unknown` and asks -- refusing a
+        # real question is the more expensive error.
+        if language and language != "en":
+            return UNKNOWN_INTENT
+        if _MARINE_SIGNAL.search(text) or _LATLON_HINT.search(text):
+            return UNKNOWN_INTENT
+        return "smalltalk_or_out_of_scope"
 
     def _llm_classify(self, query_text: str) -> str | None:
         response = self.ask(LLMRequest(

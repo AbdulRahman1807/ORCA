@@ -1635,3 +1635,369 @@ own verification checklist.
 
 The fix belongs in intent parsing, not in the interface, and changing route
 detection has real blast radius, so it was left alone and is recorded here.
+
+---
+
+## 23. Session 13 — the graph as a graph, and a checklist that found two bugs
+
+Two things: the last open item on the tier list, and then actually running
+`23_FRONTEND_REBUILD_BRIEF.md` §8 end to end. The checklist was the more
+valuable half — it found two defects that every other check had passed.
+
+### 23.1 The agent trace as the graph it is
+
+The timeline shows every node in completion order, which is the right shape for
+reading WHAT happened. What it cannot show is that the run has a **shape**: a
+plan that fans out across seven tools at once, a validation gate that can send
+the run backwards, a per-domain assessment fan-out that is deliberately never
+merged. That shape is the thing a dashboard cannot produce, and it was being
+rendered as a flat list.
+
+`TraceGraph.tsx` draws the topology from `graph/build.py` as a fixed skeleton
+and lights the run over it. Two consequences are the whole point:
+
+* **A node that did not run stays visible, dim.** The path not taken is
+  information. `clarify` dark means ORCA did not need to ask; `replan` dark
+  means the first plan was sufficient; `human_review` dark means the answer was
+  auto-released. Hiding them would make every run look like the only path the
+  graph has.
+* **The fan-outs are drawn as fan-outs.** Seven parallel tools read as seven
+  parallel tools rather than seven consecutive lines — which is what F-56 was
+  about in the first place, and what a vertical list structurally cannot show.
+
+The skeleton is hand-maintained against `build.py`. That is a real maintenance
+cost and worth stating: a *wrong* picture of the graph would be worse than no
+picture, so the edges drawn there are exactly the edges compiled here. The
+timeline is kept alongside it, because the graph has no room for per-node codes
+and timings; selecting a node reveals them.
+
+**D-47 · Both views, and the graph leads.** They answer different questions —
+"what is the shape of this run" and "what happened, in order" — and neither
+subsumes the other.
+
+### 23.2 Two bugs the checklist found
+
+Every automated check passed and both of these were still broken, because both
+are about a *relationship* between parts that are individually correct.
+
+| ID | Finding |
+|---|---|
+| **F-66** | **The clarifying question was visible, but the cursor was not in the box.** F-57 fixed this once; the React port reintroduced it in a subtler form. The textarea is `disabled` while streaming, and the `result` event arrives *while `isStreaming` is still true* — so `focus()` was called on a disabled element, did nothing, and nothing re-focused it when the stream ended a moment later. Focus now waits for the stream to end. The bug is invisible to any test that asserts on the DOM rather than on `document.activeElement`. |
+| **F-67** | **A Malayalam question was answered in English on screen, while its Malayalam answer sat unused in the response.** `recommendation.headline` is a short English summary; `recommendation.narrative` is the COMPOSED answer and the only field written in the user's language. The interface rendered the headline and discarded the narrative. Language detection, the `ML` badge, the lexicons and the backend composition were all working perfectly — the last step threw the result away. |
+
+F-67 is worth dwelling on because of what it implies. The verdict cards' domain
+names, factor names and band labels are all English. The narrative is therefore
+not a nicety for a non-English reader; it is the *entire* readable answer. So it
+now leads — the headline is its first line — and the rest is kept: collapsed in
+English, where the cards below say the same thing, and open otherwise, where
+they do not.
+
+### 23.3 §8, run properly
+
+All ten items pass. Three are worth recording because of *how* they were
+verified rather than that they passed:
+
+**Three turns, no accumulation.** Turn 1 near Kochi produced three cards
+(SAFETY, FISHING_SUITABILITY, REGULATORY), 3 alerts, 9 evidence. Turn 2 "is it
+safe there tomorrow morning?" produced **SAFETY only**. Turn 3 "am I inside the
+EEZ?" produced **REGULATORY only**. Location carried through all three and was
+never re-asked. D-44 holds under a real conversation.
+
+A second run of the same test found something better than a pass: asking "is it
+safe?" after a boundary check returned `waiting on time_window` — the session
+had carried the location but the boundary question established no window, and a
+safety question needs one. The clarification turn showed **zero** verdict cards
+rather than the previous turn's stale one, which is the accumulation property
+demonstrated at the moment it would be most tempting to get wrong.
+
+**Tile hosts blocked.** Verified for real, by pointing all three basemap hosts
+at an unroutable address and rebuilding, rather than by reasoning about it. On a
+completely blank map the answer, gauges, alerts, evidence, temporal strip, the
+agent graph, the EEZ boundary lines and the position marker all rendered. The
+GeoJSON layers are worth calling out: they do not depend on tiles, so "no
+basemap" is not "no map" — the boundaries are still there.
+
+**Coverage near Kochi.** 55 %, 5 207 cells masked and drawn as gaps.
+
+### 23.4 Still open
+
+Unchanged from §22.6 and §22.5: the `to`-infinitive location bug still fails ten
+graph tests and still breaks "is it safe to go out near Kochi"; the committed
+`webui/` bundle is still a build artefact nothing reproduces in CI; and there is
+still no pinned requirements file.
+
+---
+
+## 24. Session 14 — the route that was never steered
+
+A verification pass asked four questions. Three came back clean; the fourth found
+the most serious defect in the project so far, and it had been passing every test
+in the suite.
+
+### 24.1 What the audit found
+
+**Coherence — passes.** Eleven cross-checks over one run and its provenance
+chain: every `evidence.provenance_id` resolves, every `driver.evidence_id`
+resolves, every driver's number equals its evidence's number exactly, every
+provenance record has a temporal-strip row, a capped verdict has no driver
+marked limiting and its `limiting_factor` IS the cap, and every alert carries a
+`dataset_version` and `advisory_only`. One imprecision worth recording:
+`source_id` can be a source GROUP (`S-01..S-04`) rather than the dataset that
+actually served the value, so the audit trail cannot answer "which one".
+
+**Multi-run — passes.** Distinct `run_id` per turn; assessments 3 → 1 → 1 and
+alerts 3 → 0 → 3 across three turns rather than accumulating; a second thread
+resolved "near Chennai" without leaking into the first, which stayed "near
+Kochi". D-44 and F-55 hold under a real conversation.
+
+**Out-of-scope — no fabrication, but the wrong guard.** `hi`, `what is c
+programming`, `write me a poem about dogs` and a prompt-injection attempt all
+produced **zero assessments and zero evidence**; a follow-up naming a place asked
+for the intent rather than inventing one. Nothing is fabricated. But all four
+were answered with "Where are you asking about?", which treats nonsense as a
+marine question missing a detail. `classify()` returns
+`smalltalk_or_out_of_scope` **only for empty text**; everything else falls to
+`unknown`, which routes to `plan`. The `out_of_scope` edge in `build.py` is
+therefore **dead code**. Recorded, not yet fixed.
+
+Translation degrades safely: `t()` falls back to the English key, so a missing
+term surfaces in English rather than as a wrong claim. Eighteen leaked into a
+Malayalam narrative (`distance`, `thermal`, `front`, `seasonal closure`, …).
+A coverage gap, not a correctness risk — numbers and INCOIS/IMD stayed intact.
+
+### 24.2 The route was a shortest path, and looked like more
+
+| ID | Finding |
+|---|---|
+| **F-68** | **No gridded field ever reached the router.** `geo_reason` collected `OceanField` instances out of `tool_results` — but retrieval returns POINT values, so the list was always empty. Instrumented over one Kochi→Chennai route: **0 fields, and `cost_function` called 5 128 times returning 0.0 every single time.** Every route ORCA has ever drawn was the shortest navigable path. |
+
+The machinery was never broken, only starved. Injecting a synthetic 4 m band
+across the corridor moved the route 997 km → 1848 km and pushed its southern
+limit from 8.03N to 5.93N. The cost function, the penalties and the A* search
+were all correct; nothing fed them.
+
+What makes this the worst defect so far is not the routing. It is that the map
+looked right. A distance-only path and a weather-steered path are the **same
+picture**, and this interface had just added a corridor tinted by wave height
+along it — so the colour invited a reader to believe the route avoided the red
+stretches. It did not. The prose never overclaimed (a route answer refuses to
+call itself safe), and the layer already carried an honest `note`, but nothing
+rendered it: the one place the truth lived was a property nobody saw.
+
+**D-48 · A route declares what steered it.**
+`steered_by` now travels with the route layer, empty when nothing steered it,
+and both the map legend and a new route card read from it. A route planned on
+distance alone says so, in those words, in the answer.
+
+### 24.3 The wiring
+
+Grids are fetched at `geo_reason` for the CORRIDOR — the midpoint plus a radius
+covering the whole route with room for the detour a field may force — because
+nothing upstream produces them and a field that stops at the straight line goes
+blind halfway through a diversion. The provider is injected from the composition
+root exactly as `navigable` is, so the graph node still never touches an adapter.
+
+Two things were easy to get wrong here:
+
+* **Row order.** `extract_field_values` indexes from `bbox.min_lat`, so row 0
+  must be the SOUTHERNMOST latitude, and sources publish either order.
+  `as_ocean_field` normalises and is tested from both directions. A flipped grid
+  would apply every penalty to the mirror image of the sea it was measured in —
+  worse than no penalty at all, because the route would still look steered.
+* **Silent failure.** Every fetch failure is returned as a declared gap, named
+  and reasoned, and surfaces in `not_evaluated` as
+  `route_steering:<parameter>`. The whole risk being fixed is a distance-only
+  line presented as an optimised one; a swallowed exception would reintroduce it.
+
+Live, Kochi→Chennai: both grids fetched (97×97 waves, 17×18 wind), route
+996.6 km → **1015.9 km**. The router accepted **19.3 extra km to avoid 80
+penalty-km** of rough water, and the corridor's own maximum fell from 1.89 m to
+1.78 m. With the adapters removed it degrades to `objective: "shortest navigable
+path only"`, the note gains "Sea state was NOT considered", the route card turns
+amber, and the corridor legend switches to "shown for information only … this
+route did **not** take these conditions into account".
+
+### 24.4 Still open
+
+The `to`-infinitive location bug (§22.6), `out_of_scope` as dead code (§24.1),
+the unreproducible committed `webui/` bundle and the missing pinned requirements
+file (§22.5).
+
+---
+
+## 25. Session 15 — a greeting is not a marine question
+
+§24.1 recorded that `hi` and `what is c programming` were answered with "Where
+are you asking about?". Nothing was fabricated — no verdict, no evidence, and
+supplying a location produced "which topic?" rather than an answer — but the
+exchange was **untrue about itself**: asking where asserts that the query WAS a
+marine question merely missing a detail.
+
+### 25.1 Why the branch was dead
+
+Three things had to be wrong at once, and they were.
+
+| ID | Finding |
+|---|---|
+| **F-69** | **`classify()` returned `smalltalk_or_out_of_scope` only for EMPTY text.** Everything unmatched fell to `unknown`, which routes to `plan`, which asks for the missing detail. The negative case was never reachable from any real query. |
+| **F-70** | **`out_of_scope` was wired straight to `finalize`, which composes nothing.** So even had the branch been reachable, it would have produced an answer with no headline and no recommendation at all. |
+
+Both had to be fixed together: a classification with nowhere to go, and a
+destination with nothing to say.
+
+### 25.2 The test is for ABSENCE of signal, and it fails safe
+
+The two errors here are not symmetric. Refusing a question a fisher actually
+asked is a failure of the product; asking a clarifying question about nonsense
+is merely clumsy. So the rule is deliberately lopsided: a query is out of scope
+only when it contains **no marine signal at all**, tested after every intent
+keyword has already failed.
+
+`_MARINE_SIGNAL` is therefore wide — marine nouns, vessels, gear, time
+expressions, bearings — and a bare position counts on its own. Two further
+escapes live in the context node, which is the only place that can see them:
+
+* **a query that names a PLACE.** "near Kochi" and "to Chennai" carry no marine
+  noun of their own and are the clarification loop's own replies;
+* **a thread with a question outstanding.** An answer is as short and bare as
+  the question made it.
+
+**D-49 · A carried location is not marine signal.**
+The place test reads the QUERY TEXT only, deliberately ignoring the session and
+any client GPS. The first implementation used the resolved location, which
+includes the carried one — so `hi` mid-conversation inherited the previous
+turn's location, was downgraded to `unknown`, picked up the carried intent and
+answered the fishing question again. A remembered location is what makes a
+follow-up answerable; it does not make a greeting a question.
+
+For a language whose own lexicon produced no hit, there is no basis to judge, so
+it stays `unknown` and asks. Malayalam smalltalk is still answered with a
+question — a documented limitation, and the safe direction.
+
+### 25.3 The bug the fix created
+
+| ID | Finding |
+|---|---|
+| **F-71** | **Out of scope was remembered as the conversation's topic.** `finalize` persists `intent` into `session_context`, and a follow-up inherits it. So a single `hi` mid-thread set the topic to `smalltalk_or_out_of_scope`, and **every later turn inherited it and was refused too** — "what about tomorrow?" after a greeting stopped working. Neither "out of scope" nor "unclassified" is something a follow-up can be ABOUT, so neither is persisted now. |
+
+This one is worth recording because it was invisible in single-shot testing and
+only appeared when a real conversation interleaved smalltalk with questions:
+
+```
+is it good for fishing near Kochi tomorrow morning?   answered      3 assessments
+hi                                                    OUT_OF_SCOPE  0
+what about tomorrow?                                  answered      3 assessments
+thanks                                                OUT_OF_SCOPE  0
+am I inside the EEZ?                                  answered      1
+what is c programming                                 OUT_OF_SCOPE  0
+is it safe there?                                     answered      1
+```
+
+### 25.4 What the answer says, and what the graph shows
+
+The node states what ORCA covers rather than asking where. The interface
+suppresses the intent/disposition line (`smalltalk_or_out_of_scope ·
+out_of_scope` is internal vocabulary) and the resolution notes — "no location in
+the query" would have reintroduced exactly the implication being removed — and
+opens the guidance rather than collapsing it, because here the guidance IS the
+answer.
+
+The agent graph shows the truth without being told to: `Out of scope` lit,
+`Ingest → Resolve intent → Finalise` on the spine, and Plan, Retrieve, Validate,
+Assess and Report all dim. No retrieval happened and the picture says so. The
+skeleton in `TraceGraph.tsx` was updated in the same change — it is
+hand-maintained against `build.py`, and adding a node there without adding it
+here would have made the drawing quietly wrong.
+
+An existing test asserted the OLD contract (`hello there` → ask for intent). It
+was replaced by two: an unclassifiable but genuinely marine query still asks, and
+a query with no marine content is refused. The first is the line that must hold.
+
+455 tests pass, 17 new.
+
+### 25.5 Still open
+
+The `to`-infinitive location bug (§22.6) — ten graph tests, and "is it safe to
+go out near Kochi" still fails to resolve a location. The unreproducible
+committed `webui/` bundle and the missing pinned requirements file (§22.5).
+
+---
+
+## 26. Session 16 — two wrong-premise bugs, and a green suite
+
+Both bugs here are wrong-PREMISE bugs, which is the worst kind this pipeline can
+carry: every number downstream is correctly retrieved, correctly aligned and
+correctly assessed — for a place or a time the user did not ask about. Nothing
+later in the chain can detect that, because nothing later knows what was asked.
+
+The suite now passes in full for the first time: **478 tests, 0 failures.**
+
+### 26.1 `to` is usually an infinitive
+
+| ID | Finding |
+|---|---|
+| **F-72** | **The route-destination matcher read every `to` as a preposition.** `_route_endpoints` searched the fragment after `to` with a SUBSTRING test, so "is it safe **to** go out near Kochi" found `kochi` inside a verb phrase and made it the destination. It was then excluded from origin matching and nothing resolved, so the commonest phrasing of the commonest question answered "Where are you asking about?". Every query with `to` before a place name was affected — "is it safe to sail near Chennai", "do I need to worry about waves near Mumbai". |
+
+`to` marks a verb far more often than it marks a destination, and the two
+readings put the place in opposite roles: in "route TO Chennai" it is where you
+are going, in "safe TO go out near Kochi" it is where you already are.
+
+**D-50 · A destination is NAMED at its slot, not mentioned inside it.**
+`_place_at_start` anchors the name to the beginning of the fragment, allowing
+only determiners and "port of"-style fillers. A substring search cannot make
+that distinction; anchoring can, and it costs nothing — "route from Kochi to the
+port of Chennai" still resolves both endpoints.
+
+This one defect accounted for **eight** of the ten long-standing test failures.
+
+### 26.2 The window never moved
+
+Fixing the first exposed the second, which was worse.
+
+| ID | Finding |
+|---|---|
+| **F-73** | **Every turn after the first reused the first turn's window.** `_resolve_window` read `state["resolved_time_window"]` — its own OUTPUT channel, which a checkpointed thread restores — before parsing the query. So "what about tonight?" was answered for tomorrow morning, and the resolution note said *"window supplied by the caller"* while doing it. A confidently wrong time, with a false account of where it came from. |
+
+The location path had never had this bug because a place named in the query
+already beat the carried one. The window is now ordered the same way: this
+turn's words, then a per-turn `client_time_window` from the caller, then the
+conversation's carried window, then nothing. The carry itself was never wrong —
+"how is the fishing?" after "tomorrow morning" should still mean tomorrow
+morning — only its priority was.
+
+```
+is it safe near Kochi tomorrow morning?   2026-09-04T00:30   (parsed)
+what about tonight?                       2026-09-03T12:30   (parsed, moved)
+how is the fishing?                       2026-09-03T12:30   (carried, and says so)
+```
+
+**D-51 · Caller input never shares a channel with graph output.**
+`client_location` already followed this rule; `client_time_window` now does too.
+A channel the graph writes and a checkpoint restores cannot also carry what the
+caller asked for this turn — the two are indistinguishable once stored, and the
+older value silently wins.
+
+### 26.3 What the tests were hiding
+
+Three of the ten failures were the tests' own doing, and each masked something:
+
+* **They seeded `resolved_*` rather than `client_*`.** That is a path no caller
+  can take — the API has used `client_location` since the UI work — so the tests
+  were exercising a contract that did not exist, and F-73 could never have
+  surfaced through them.
+* **They hardcoded `2026-09-03` as the analysis window** while asking about
+  "tomorrow morning". That passed only until the date arrived, then failed for
+  reasons unrelated to the code. The fixtures now derive the window the same way
+  the resolver does, so the fixture and the query say the same thing forever.
+* **One asserted the pre-fix contract** for `hello there` (§25) and was replaced
+  rather than patched.
+
+A test that seeds an output channel is not testing the product; it is testing a
+shape the product never sees.
+
+### 26.4 Still open
+
+The committed `webui/` bundle is still a build artefact nothing reproduces in
+CI, and there is still no pinned requirements file — the documented install list
+omits `fastapi` and `uvicorn` (§22.5). `out_of_scope` for non-English smalltalk
+remains a clarifying question rather than a refusal, by design (§25.2).

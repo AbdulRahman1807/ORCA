@@ -35,6 +35,21 @@ def _window(state: OrcaGraphState, hours: int = 4) -> tuple[datetime, datetime]:
     return start, start + timedelta(hours=hours)
 
 
+def _corridor_radius_km(lat1: float, lon1: float,
+                        lat2: float, lon2: float) -> float:
+    """A radius about the corridor midpoint that covers the whole route.
+
+    Half the endpoint separation would cover only the straight line; the route
+    is free to bow away from it, and a penalty field that stops at the straight
+    line would steer the first half of a detour and then go blind. The margin is
+    generous for that reason, and clamped so a short hop still fetches a usable
+    grid and a long one does not ask for the whole ocean.
+    """
+    from ...geospatial.routing import _km
+    half = _km(lon1, lat1, lon2, lat2) / 2.0
+    return max(150.0, min(800.0, half * 1.6))
+
+
 def geo_reason(state: OrcaGraphState, config=None) -> dict:
     started = time.perf_counter()
     rt = runtime_from(config)
@@ -58,6 +73,8 @@ def geo_reason(state: OrcaGraphState, config=None) -> dict:
     # NEW ROUTING LOGIC
     intent = getattr(plan, "intent", "") if plan else ""
     additional_tool_results = []
+    extra_provenance = []
+    route_gaps: list[NotEvaluated] = []
     
     if intent == "route_optimization" and loc.get("dest_lat") is not None:
         from ...geospatial.routing import a_star_route
@@ -87,6 +104,37 @@ def geo_reason(state: OrcaGraphState, config=None) -> dict:
                     "geo_reason", "success", started=started,
                     summary="route requested but no navigability mask configured")],
             }
+        # Gridded wave and wind for STEERING.
+        #
+        # `tool_results` carries point values, not grids, so the field list
+        # above is always empty in practice -- which made every route a
+        # shortest path while the cost function sat there returning zero. The
+        # grids are fetched here, for the corridor rather than for a point,
+        # because that is what the router needs and nothing upstream produces.
+        #
+        # Failure is DECLARED, never swallowed: a route steered by nothing is a
+        # shortest path, and the risk this guards against is a distance-only
+        # line presented as an optimised one.
+        steered_by: list[str] = []
+        field_gaps: list[dict] = []
+        provider = getattr(rt, "route_fields", None)
+        if provider is not None:
+            mid_lat = (loc["lat"] + loc["dest_lat"]) / 2.0
+            mid_lon = (loc["lon"] + loc["dest_lon"]) / 2.0
+            # Half the diagonal, plus room for the detour the fields may force.
+            span = _corridor_radius_km(loc["lat"], loc["lon"],
+                                       loc["dest_lat"], loc["dest_lon"])
+            try:
+                grids, grid_prov, field_gaps = provider(
+                    mid_lat, mid_lon, utcnow(), span)
+                fields.extend(grids)
+                extra_provenance.extend(grid_prov)
+                steered_by = [f.parameter for f in grids]
+            except Exception as exc:                  # never fail the route
+                field_gaps = [{"parameter": "route_fields",
+                               "reason": "ADAPTER_ERROR",
+                               "detail": f"{type(exc).__name__}: {exc}"}]
+
         try:
             path = a_star_route(
                 start_lon=loc["lon"], start_lat=loc["lat"],
@@ -118,8 +166,22 @@ def geo_reason(state: OrcaGraphState, config=None) -> dict:
                         "length_km": round(length_km, 1),
                         "navigability": "MarineRegions EEZ snapshot",
                         "advisory_only": True,
+                        # What the route was actually steered by, and what it
+                        # was not. A reader must be able to tell an
+                        # environmentally-steered route from a shortest path,
+                        # because they look identical on a map.
+                        "steered_by": steered_by,
+                        "fields_unavailable": field_gaps,
+                        "objective": ("shortest navigable path, penalised by "
+                                      + ", ".join(steered_by)) if steered_by
+                                     else "shortest navigable path only",
                         "note": "planned in navigable water; not a "
-                                "navigational chart and no depth is considered"}
+                                "navigational chart and no depth is considered"
+                                + ("" if steered_by else
+                                   ". Sea state was NOT considered: no gridded "
+                                   "wave or wind field was available, so this "
+                                   "is the shortest safe-water path, not a "
+                                   "weather-optimised one")}
             )
             report.derived.append(route_evidence.provenance_id)
             
@@ -141,11 +203,18 @@ def geo_reason(state: OrcaGraphState, config=None) -> dict:
                         [f"{loc['lat']},{loc['lon']}",
                          f"{loc['dest_lat']},{loc['dest_lon']}"],
                         {"resolution_deg": 0.15,
-                         "navigability": "MarineRegions EEZ snapshot"},
+                         "navigability": "MarineRegions EEZ snapshot",
+                         "steered_by": steered_by},
                         module="routing")
-                )]
+                )] + extra_provenance
             )
             additional_tool_results.append(route_env)
+            # A field that could not be fetched is a declared gap, so the
+            # answer names what the route could not take into account.
+            for gap in field_gaps:
+                route_gaps.append(NotEvaluated(
+                    factor=f"route_steering:{gap['parameter']}",
+                    reason=gap["reason"], detail=gap["detail"]))
         except Exception as exc:
             # A swallowed failure here meant the user asked for a route, got a
             # safety assessment instead, and was never told routing had failed.
@@ -166,6 +235,7 @@ def geo_reason(state: OrcaGraphState, config=None) -> dict:
     return {
         "alignment_report": report,
         "tool_results": additional_tool_results,
+        "not_evaluated": route_gaps,
         "node_events": [node_event("geo_reason", "success", started=started,
                                    summary=result.reasoning_summary,
                                    aligned=len(report.aligned),

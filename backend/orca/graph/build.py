@@ -24,6 +24,7 @@ def build_graph(checkpointer=None):
     g.add_node("ingest", context.ingest)
     g.add_node("intent_context", context.intent_context)
     g.add_node("clarify", context.clarify)
+    g.add_node("out_of_scope", context.out_of_scope)
     g.add_node("plan", planning.plan)
     g.add_node("tool_exec", retrieval.tool_exec)
     g.add_node("validate", validation.validate)
@@ -42,7 +43,9 @@ def build_graph(checkpointer=None):
     g.add_edge("ingest", "intent_context")
     g.add_conditional_edges("intent_context", route_after_intent, {
         "plan": "plan",
-        "out_of_scope": "finalize",
+        # Was wired straight to `finalize`, which composes nothing -- so the
+        # branch produced an empty answer and was, in practice, dead code.
+        "out_of_scope": "out_of_scope",
         "error": "error_handler",
     })
     g.add_conditional_edges("plan", route_after_plan,
@@ -76,6 +79,7 @@ def build_graph(checkpointer=None):
     g.add_edge("report", "finalize")
     g.add_edge("error_handler", "finalize")
     g.add_edge("clarify", "finalize")
+    g.add_edge("out_of_scope", "finalize")
     g.add_edge("finalize", END)
 
     return g.compile(checkpointer=checkpointer)

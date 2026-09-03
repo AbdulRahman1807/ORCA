@@ -195,7 +195,7 @@ Tiers are from the visual plan. **Done** means verified live in a browser.
 | # | Component | Status | Notes |
 |---|---|---|---|
 | 1 | Animated wind / current particles | **Done** | `wind.js`: bilinear sampling, speed-coloured trails, respawn on a hole. Both `wind` and `current`. Lift as-is. |
-| 2 | Live agent trace | **Done, as a timeline** | SSE-driven, all nodes incl. parallel fan-out, per-node source/codes/timing. **Not** a DAG layout — a vertical list. A real node-graph remains the upgrade. |
+| 2 | Live agent trace | **Done, as a graph** | Two views over the same events. **Graph** draws the topology from `build.py` as a fixed skeleton and lights the run over it: the seven-tool fan-out reads as a fan-out, the three-domain assessment spread as a spread, and a node that did NOT run stays visible and dim — `clarify` dark means ORCA did not need to ask, `replan` dark means the first plan sufficed. Selecting a node gives its codes, source and timing. **Timeline** is the original vertical list, kept because the graph has no room for per-node detail. |
 | 3 | Chlorophyll field | **Done** | Heatmap with holes and coverage %. The local-median contour is drawn as a dashed ring (`lib/geo.ts` marching squares), so the ratio the verdict actually used is visible. A cell with any masked corner is skipped rather than contoured through. |
 
 ### Tier 2 — over data the API already returns
@@ -206,7 +206,7 @@ Tiers are from the visual plan. **Done** means verified live in a browser.
 | 5 | Temporal alignment strip | **Done** | `temporal_alignment` added to the projection, built from **provenance** rather than evidence so a value that was retrieved and then refused still appears. Each row is one value's own validity against the analysis window, with its true age, whether it was used, and why not. Verified live: 2011 INCOIS SST reads `14.9 yr old — too old for this window`; CMEMS chlorophyll at `2.3 d old` reads used, and so does its raw input, reached through the derivation chain. |
 | 6 | Provenance chain | **Done, as a chain** | Drawn as L1 source → L2 derivation → L3 value, in the direction the data travelled, with a connecting rail. A value with no derivation gets an explicit "as published" L2, never a blank step that would imply a computation. |
 | 7 | Source health | **Done, as a constellation** | Grouped by the domain each capability serves, with per-domain counts (SAFETY 3/7, FISHING 4/4, REGULATORY 1/1). An unbound capability stays visible, dashed, carrying its reason — dropping it would make the map of what ORCA can do look complete. |
-| 8 | Route ribbon | **Done** | Dark casing under a wave-tinted corridor, animated dash on top, fit-to-bounds. Wave height is sampled per segment from `/v1/field/waves` and coloured on the small-craft band edges; a segment over a masked cell stays grey and the legend says so rather than inheriting a neighbour's value. The wave fetch happens after the route is drawn and can never gate it. |
+| 8 | Route ribbon | **Done** | Dark casing under a wave-tinted corridor, animated dash on top, fit-to-bounds. Wave height is sampled per segment from `/v1/field/waves`; a segment over a masked cell stays grey and the legend says so rather than inheriting a neighbour's value. **The tint is not a claim about the route:** `steered_by` travels with the layer, and the legend and route card state whether the router was actually steered by those conditions or merely has them drawn on it. A distance-only route says so in those words (F-68, D-48). |
 | 9 | Geofence proximity | **Done** | Alert cards plus geodesic range rings on the map, one per alert that carries a distance, coloured by severity. Distance and the map are finally in the same frame. Cards now show `dataset_version` and `advisory only` on **every** alert, not only those with a distance — an `inside` alert had been losing both. |
 | 10 | Disagreement panel | **Done** | Divergence is named without merging anything: both vocabularies share one severity ladder, and a spread of two bands or more raises a panel naming each domain, its verdict and its governing factor. `UNKNOWN` and `INSUFFICIENT_EVIDENCE` are deliberately off the ladder — not knowing is a gap, not a position that can disagree. Adjacent bands do not trigger it. |
 
@@ -225,12 +225,9 @@ Tiers are from the visual plan. **Done** means verified live in a browser.
 
 ### Roughly
 
-**Tier 1 ~95 %** · **Tier 2 100 %** · **Tier 3 100 %**.
+**Tier 1 100 %** · **Tier 2 100 %** · **Tier 3 100 %**.
 
-The one thing still open in Tier 1 is the agent trace as a real **node-graph**
-rather than a vertical timeline. It is a genuine upgrade and not a gap: the
-timeline already shows every node, including the parallel fan-out, which is the
-property the panel exists to demonstrate.
+Every item in the tier list is built and verified live. §8 is fully green.
 
 ---
 
@@ -253,15 +250,28 @@ property the panel exists to demonstrate.
 
 ## 8. Verification checklist
 
-The rebuild is complete when all of these pass in a real browser:
+All verified in a real browser at 1500×940, against live sources.
 
-- [ ] Fishing query → 3 independent verdict cards, gauges, alerts, evidence
-- [ ] All seven tools appear individually in the trace
-- [ ] `plan a route` → visible question, focused input, trace not covering it
-- [ ] Answering it → route drawn, no waypoint on land
-- [ ] Three-turn conversation carries location and **does not** accumulate verdicts
-- [ ] A Malayalam query answers in Malayalam with numbers and IMD/INCOIS intact
-- [ ] Chlorophyll layer shows holes; legend reports ~50 % coverage near Kochi
-- [ ] With the network to tile hosts blocked, chat and verdicts still work
-- [ ] `verdict_capped_by` present → no driver marked limiting; ceiling stated
-- [ ] REGULATORY booleans read inside/outside
+- [x] Fishing query → 3 independent verdict cards, gauges, alerts, evidence
+      — 3 cards (SAFETY, FISHING_SUITABILITY, REGULATORY), 5 gauges, 3 alerts, 9 evidence
+- [x] All seven tools appear individually in the trace
+      — as a genuine fan-out: `chlorophyll, currents, maritime_boundaries, pfz,
+      sst, wave_conditions, weather`, each with its source, codes and timing
+- [x] `plan a route` → visible question, focused input, trace not covering it
+      — required a fix: the textarea is disabled while streaming, so the
+      existing `focus()` ran on a disabled element and did nothing (F-66)
+- [x] Answering it → route drawn, 75 segments, both endpoint markers
+- [x] Three-turn conversation carries location and **does not** accumulate verdicts
+      — turn 1 three cards, turn 2 SAFETY only, turn 3 REGULATORY only, all
+      "near Kochi" and never re-asked
+- [x] A Malayalam query answers in Malayalam with numbers and IMD/INCOIS intact
+      — required a fix: the localised answer is `recommendation.narrative`, and
+      the interface rendered only the always-English `headline` (F-67)
+- [x] Chlorophyll layer shows holes; legend reports ~50 % coverage near Kochi
+      — 55 %, 5 207 cells masked and drawn as gaps
+- [x] With the network to tile hosts blocked, chat and verdicts still work
+      — verified by pointing all three basemap hosts at an unroutable address:
+      answer, gauges, alerts, evidence, temporal strip, the agent graph, the EEZ
+      boundaries and the position marker all render on a blank map
+- [x] `verdict_capped_by` present → no driver marked limiting; ceiling stated
+- [x] REGULATORY booleans read inside/outside

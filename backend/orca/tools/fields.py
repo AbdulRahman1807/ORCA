@@ -112,3 +112,100 @@ def get_field(name: str, lat: float, lon: float, valid_time: datetime, *,
     else:
         out["values"] = _clean(u)
     return out
+
+# ---------------------------------------------------------------- routing ---
+#
+# The router consumes gridded fields; every other consumer of `get_field` wants
+# JSON for a canvas. These two helpers are the bridge, and they live here rather
+# than in the graph so that the row-order normalisation below is testable
+# without standing up a run.
+
+#: Fields that steer a route, and the parameter name `routing.cost_function`
+#: looks for. Wind is a vector product, so its SPEED is what matters here.
+ROUTE_FIELDS: tuple[tuple[str, str], ...] = (
+    ("waves", "significant_wave_height"),
+    ("wind", "wind_speed"),
+)
+
+
+def as_ocean_field(payload: dict, parameter: str, *, provenance_id: str):
+    """A `get_field` payload as the gridded field the router consumes.
+
+    Rows are normalised to ASCENDING latitude. `routing.extract_field_values`
+    indexes with ``int((lat - bbox.min_lat) / dlat)``, so row 0 must be the
+    southernmost latitude -- but sources publish either order. A flipped grid
+    would apply each penalty to the MIRROR IMAGE of the sea it was measured in,
+    which is worse than applying no penalty at all: the route would look
+    weather-aware while steering by an inverted picture.
+    """
+    from ..schemas.core import BBox, Provenance, SpatialRef, TemporalRef
+    from ..schemas.data import OceanField
+    from ..schemas.enums import ValueKind
+
+    lats = payload["lats"]
+    rows = payload.get("values")
+    if rows is None:                      # vector field: steer on the magnitude
+        rows = payload.get("speed")
+    if not rows or not lats:
+        return None, None
+
+    if lats[0] > lats[-1]:                # published north-to-south
+        rows = list(reversed(rows))
+        lats = list(reversed(lats))
+
+    lons = payload["lons"]
+    bbox = BBox(min_lat=min(lats), min_lon=min(lons),
+                max_lat=max(lats), max_lon=max(lons))
+    valid_time = datetime.fromisoformat(payload["valid_time"])
+    temporal = TemporalRef(valid_time=valid_time)
+    field = OceanField(
+        parameter=parameter, unit=payload.get("unit"),
+        value_kind=ValueKind.FORECAST,
+        spatial=SpatialRef(kind="bbox", bbox=bbox),
+        temporal=temporal,
+        values_inline=rows,
+        summary={"cells": payload.get("cells"), "range": payload.get("range"),
+                 "field": payload.get("field")},
+        provenance_id=provenance_id,
+    )
+    prov = Provenance(
+        provenance_id=provenance_id, parameter=parameter,
+        value_kind=ValueKind.FORECAST, unit=payload.get("unit"),
+        spatial=field.spatial, temporal=temporal,
+        source=payload.get("source"), source_id=payload.get("source_id"),
+        dataset=payload.get("dataset"),
+        access_method="gridded field for route steering",
+    )
+    return field, prov
+
+
+def route_fields(lat: float, lon: float, valid_time: datetime, *,
+                 radius_km: float, cmems=None, gfs=None) -> tuple[list, list, list]:
+    """Gridded fields for route steering: (fields, provenance, unavailable).
+
+    Every failure is REPORTED, never swallowed. A route steered by nothing is a
+    shortest path, and the answer has to be able to say so -- the whole risk
+    here is a distance-only line that looks weather-aware.
+    """
+    fields, provenance, unavailable = [], [], []
+    for i, (name, parameter) in enumerate(ROUTE_FIELDS):
+        try:
+            payload = get_field(name, lat, lon, valid_time,
+                                radius_km=radius_km, cmems=cmems, gfs=gfs)
+        except FieldError as exc:
+            unavailable.append({"parameter": parameter, "reason": exc.code,
+                                "detail": exc.detail})
+            continue
+        except Exception as exc:                      # adapter, network, decode
+            unavailable.append({"parameter": parameter, "reason": "ADAPTER_ERROR",
+                                "detail": f"{type(exc).__name__}: {exc}"})
+            continue
+        field, prov = as_ocean_field(
+            payload, parameter, provenance_id=f"pv-route-{parameter[:12]}-{i}")
+        if field is None:
+            unavailable.append({"parameter": parameter, "reason": "NO_DATA",
+                                "detail": f"{name}: no grid returned"})
+            continue
+        fields.append(field)
+        provenance.append(prov)
+    return fields, provenance, unavailable

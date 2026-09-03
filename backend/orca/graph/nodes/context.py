@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from ...agents.planner import PlannerAgent
+from ...agents.planner import UNKNOWN_INTENT, PlannerAgent
 from ..events import node_event
 from ..runtime import runtime_from
 from ..state import OrcaGraphState
@@ -140,24 +140,78 @@ def _resolve_origin(state: OrcaGraphState,
     return None, "no location in the query, the session or the gazetteer"
 
 
+def _query_names_a_place(state: OrcaGraphState) -> bool:
+    """Does the QUERY TEXT itself name a place or a position?
+
+    Deliberately ignores the session and any client GPS. A carried location is
+    what makes a follow-up answerable, but it does not make "hi" a marine
+    question -- and reading it as one is exactly how a greeting mid-conversation
+    came to inherit the previous turn and be answered again.
+    """
+    raw = state.get("query_text") or ""
+    text = raw.lower()
+    if _LATLON.search(text):
+        return True
+    if any(re.search(rf"\b{name}\b", text) for name in GAZETTEER):
+        return True
+    lang = state.get("language") or "en"
+    if lang != "en":
+        from ...i18n.generate import native_place
+        if native_place(lang, raw):
+            return True
+    return False
+
+
+#: Words that may sit between `to` and a place without changing what it means:
+#: "to the port of Chennai" still names Chennai.
+_DEST_FILLER = re.compile(
+    r"^(?:the|a|an|towards?|near|off|around|port\s+of|city\s+of|coast\s+of)\s+")
+
+
+def _place_at_start(fragment: str, lang: str) -> str | None:
+    """The place a fragment NAMES, or None when it merely mentions one.
+
+    `to` is an infinitive marker at least as often as it is a preposition, and
+    the two readings put the place in completely different roles:
+
+        "safest route TO Chennai"          -> Chennai is the destination
+        "is it safe TO go out near Kochi"  -> Kochi is where the asker IS
+
+    A substring search cannot tell them apart. It found `kochi` in the middle of
+    a verb phrase, made it the destination, and then excluded it from origin
+    matching -- so the commonest phrasing of the commonest question resolved no
+    location at all and asked "where?" (F-72).
+
+    Anchoring the name to the START of the fragment separates them: a
+    destination follows `to` directly, give or take a determiner.
+    """
+    frag = fragment.lower().strip()
+    while True:
+        m = _DEST_FILLER.match(frag)
+        if not m:
+            break
+        frag = frag[m.end():]
+    # Longest first, so a name that prefixes another cannot shadow it.
+    for key in sorted(GAZETTEER, key=len, reverse=True):
+        if re.match(rf"{re.escape(key)}\b", frag):
+            return key
+    if lang != "en":
+        from ...i18n.generate import native_place
+        return native_place(lang, frag)
+    return None
+
+
 def _route_endpoints(state, text: str) -> tuple[str | None, str | None]:
     """(origin_key, destination_key) as gazetteer keys, either may be None.
 
-    Substring matching handles multi-word names; the language's own place
-    lexicon handles native scripts.
+    Both endpoints must be NAMED at their slot, not merely mentioned somewhere
+    inside it; the language's own place lexicon handles native scripts.
     """
     lang = state.get("language") or "en"
     raw = state.get("query_text") or ""
 
     def find(fragment: str) -> str | None:
-        frag = fragment.lower()
-        hit = max((k for k in GAZETTEER if k in frag), key=len, default=None)
-        if hit:
-            return hit
-        if lang != "en":
-            from ...i18n.generate import native_place
-            return native_place(lang, fragment)
-        return None
+        return _place_at_start(fragment, lang)
 
     m = re.search(r"\bfrom\s+(.{2,40}?)\s+to\s+(.{2,40}?)\s*[?.!]?$", text)
     if m:
@@ -189,10 +243,17 @@ def _route_endpoints(state, text: str) -> tuple[str | None, str | None]:
 
 
 def _resolve_window(state: OrcaGraphState, window_hours: int) -> tuple[dict | None, str]:
-    explicit = state.get("resolved_time_window")
-    if explicit and explicit.get("start_time"):
-        return explicit, "window supplied by the caller"
+    """The analysis window: THIS turn's words first, then what was carried.
 
+    `resolved_time_window` is an OUTPUT channel, and a checkpointed thread
+    restores it, so reading it here made every turn after the first reuse the
+    first turn's window -- "what about tonight?" was answered for tomorrow
+    morning, and the resolution note said "window supplied by the caller"
+    while it did so (F-73). A confidently wrong time is exactly the failure
+    this system exists to avoid, so the query is parsed BEFORE any carried
+    value is consulted, mirroring how a place named in the query already beats
+    the one carried in the session.
+    """
     text = (state.get("query_text") or "").lower()
     lang = state.get("language") or "en"
     if lang != "en":
@@ -211,12 +272,22 @@ def _resolve_window(state: OrcaGraphState, window_hours: int) -> tuple[dict | No
         start = now_ist.replace(hour=18, minute=0, second=0, microsecond=0)
     elif "today" in text or "now" in text or "right now" in text:
         start = now_ist
-    if start is None:
-        return None, "no time expression recognised in the query"
-    start_utc = start.astimezone(timezone.utc)
-    return ({"start_time": start_utc.isoformat(),
-             "end_time": (start_utc + timedelta(hours=window_hours)).isoformat()},
-            "parsed from the query, IST to UTC")
+    if start is not None:
+        start_utc = start.astimezone(timezone.utc)
+        return ({"start_time": start_utc.isoformat(),
+                 "end_time": (start_utc + timedelta(hours=window_hours)).isoformat()},
+                "parsed from the query, IST to UTC")
+
+    # No time in this turn's words. A per-turn window from the caller comes
+    # next, then the one the conversation established -- "what about the
+    # fishing?" after "tomorrow morning" still means tomorrow morning.
+    explicit = state.get("client_time_window")
+    if explicit and explicit.get("start_time"):
+        return explicit, "window supplied by the caller"
+    carried = (state.get("session_context") or {}).get("resolved_time_window")
+    if carried and carried.get("start_time"):
+        return carried, "window carried from session context"
+    return None, "no time expression recognised in the query"
 
 
 def intent_context(state: OrcaGraphState, config=None) -> dict:
@@ -226,13 +297,34 @@ def intent_context(state: OrcaGraphState, config=None) -> dict:
 
     intent = planner.classify(state.get("query_text") or "",
                               language=state.get("language") or "en")
-    if intent in ("unknown", "smalltalk_or_out_of_scope"):
-        carried_intent = (state.get("session_context") or {}).get("intent")
-        if carried_intent:
-            intent = carried_intent
-
     location, loc_note = _resolve_location(state)
     window, win_note = _resolve_window(state, rt.window_hours)
+
+    # The planner judges VOCABULARY; it cannot see the gazetteer or the thread.
+    # Two escapes are applied here, both of which exist to stop a real answer
+    # being refused:
+    #
+    #   * a query that resolved a PLACE is about somewhere, and "near Kochi" or
+    #     "to Chennai" carry no marine noun of their own;
+    #   * a thread with a question outstanding is receiving its ANSWER, and an
+    #     answer is as short and bare as the question made it.
+    #
+    # Both are the clarification loop's own replies, so getting this wrong
+    # would break the conversation rather than merely a stray greeting.
+    if intent == "smalltalk_or_out_of_scope" and (
+            _query_names_a_place(state) or state.get("clarification_needed")):
+        intent = UNKNOWN_INTENT
+
+    if intent == UNKNOWN_INTENT:
+        # An unclassifiable query inside a live conversation is a follow-up:
+        # "what about tomorrow?" means whatever the last turn meant. Out of
+        # scope is NOT carried -- greeting someone mid-thread must not inherit
+        # the previous question and answer it again.
+        carried_intent = (state.get("session_context") or {}).get("intent")
+        # Defensive: an older checkpoint may still hold a non-topic here.
+        if carried_intent and carried_intent not in (
+                UNKNOWN_INTENT, "smalltalk_or_out_of_scope"):
+            intent = carried_intent
 
     return {
         "intent": intent,
@@ -242,6 +334,39 @@ def intent_context(state: OrcaGraphState, config=None) -> dict:
         "resolution_notes": [loc_note, win_note],
         "node_events": [node_event("intent_context", "success", started=started,
                                    summary=f"intent={intent}; {loc_note}; {win_note}")],
+    }
+
+
+def out_of_scope(state: OrcaGraphState, config=None) -> dict:
+    """Terminal. Says what ORCA does, rather than asking about a sea area.
+
+    The alternative -- the behaviour this replaces -- was to ask "Where are you
+    asking about?" for any unrecognised text. That is not a neutral fallback: it
+    ASSERTS that the question was a marine one merely missing a detail, so
+    "what is c programming" was told its location was the problem, and a user
+    who then supplied one would be asked for an intent instead. Nothing was ever
+    fabricated, but the exchange was untrue about itself.
+    """
+    started = time.perf_counter()
+    return {
+        "disposition": "OUT_OF_SCOPE",
+        "recommendation": {
+            "category": "OUT_OF_SCOPE",
+            "headline": "That is outside what I can answer. I cover sea "
+                        "conditions, fishing suitability, maritime boundaries "
+                        "and routes in Indian waters.",
+            # The narrative LEADS the answer in the interface and its first
+            # line becomes the headline there, so it opens with the same
+            # sentence rather than with the guidance that follows it.
+            "narrative": "That is outside what I can answer.\n"
+                         "I cover sea conditions, fishing suitability, "
+                         "maritime boundaries and routes in Indian waters. "
+                         "Ask about a place and a time \u2014 for example, "
+                         "\u201cis it safe near Kochi tomorrow morning?\u201d",
+            "is_official_advisory": False,
+        },
+        "node_events": [node_event("out_of_scope", "success", started=started,
+                                   summary="query is not about the marine domain")],
     }
 
 

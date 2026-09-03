@@ -614,3 +614,111 @@ button.go:disabled { opacity: .4; cursor: default; }
   font-family: var(--mono); font-size: 9px; color: var(--text-faint);
   border: 1px solid var(--line); border-radius: 4px; padding: 0 4px;
 }
+
+/* ─────────────────────────────────────── agent graph (tier 1 #2) */
+.tviews {
+  display: flex; align-items: center; gap: 5px; margin-bottom: 11px;
+}
+.tview {
+  background: none; border: 1px solid var(--line); color: var(--text-secondary);
+  border-radius: 999px; padding: 3px 11px; font-size: 10px; cursor: pointer;
+  text-transform: uppercase; letter-spacing: .1em;
+}
+.tview.on { border-color: var(--line-2); color: var(--teal); background: rgba(79,209,197,.08); }
+.tviews-n {
+  margin-left: auto; font-family: var(--mono); font-size: 9.5px;
+  color: var(--text-faint);
+}
+
+.dag { width: 100%; height: auto; display: block; --idle: #33465c; }
+
+.dedge { stroke: var(--line); stroke-width: 1.2; fill: none; }
+.dedge.lit { stroke: var(--line-2); }
+.dedge.dashed { stroke-dasharray: 2 3; }
+/* The one edge that goes backwards. It earns its own weight. */
+.dedge.loop { stroke: var(--marginal); stroke-width: 1.4; stroke-dasharray: none; }
+.dfan { stroke: var(--line); stroke-width: 1; fill: none; }
+.dfan.lit { stroke: var(--line-2); }
+
+.dnode rect {
+  fill: rgba(14,29,46,.92); stroke: var(--idle); stroke-width: 1;
+  transition: stroke .25s, fill .25s;
+}
+.dnode text { fill: var(--text-faint); font-size: 9px; font-family: var(--sans); }
+.dnode { cursor: pointer; }
+.dnode:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+
+/* A node that did not run stays VISIBLE, dim. Hiding it would make every run
+ * look like the only path the graph has. */
+.dnode.s-idle rect { stroke-dasharray: 3 3; opacity: .75; }
+.dnode.s-ok rect { stroke: var(--teal); }
+.dnode.s-ok text { fill: var(--text-primary); }
+.dnode.s-warn rect { stroke: var(--marginal); }
+.dnode.s-warn text { fill: var(--text-primary); }
+.dnode.s-err rect { stroke: var(--unsafe); }
+.dnode.s-err text { fill: var(--text-primary); }
+.dnode.sel rect { fill: rgba(79,209,197,.14); stroke-width: 1.8; }
+.dnode.live rect { animation: dagpulse 1.15s ease-in-out infinite; }
+@keyframes dagpulse {
+  0%, 100% { stroke-width: 1; }
+  50% { stroke-width: 2.4; }
+}
+.dcount {
+  text-anchor: end; font-family: var(--mono); font-size: 8.5px;
+  fill: var(--teal) !important;
+}
+
+.dchip { fill: rgba(14,29,46,.92); stroke: var(--idle); stroke-width: .9; }
+.dchip.s-ok { stroke: var(--teal); }
+.dchip.s-warn { stroke: var(--marginal); }
+.dchip.s-err { stroke: var(--unsafe); }
+.dchip-t { fill: var(--text-secondary); font-size: 8px; font-family: var(--mono); }
+
+.dsel {
+  margin-top: 11px; padding: 9px 10px; border-radius: 9px;
+  border: 1px solid var(--line-2); background: rgba(79,209,197,.05);
+  font-size: 11px;
+}
+.dsel > b { display: block; margin-bottom: 7px; font-size: 11.5px; }
+.dsel-none { color: var(--text-faint); line-height: 1.45; }
+.dsel-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 3px 0; }
+.dsel-name { font-family: var(--mono); font-size: 10.5px; color: var(--text-primary); }
+.dsel-meta { margin-left: auto; font-size: 9.5px; color: var(--text-faint); font-family: var(--mono); }
+.dsel-why {
+  flex: 0 0 100%; font-size: 9.5px; color: var(--text-faint);
+  padding-left: 14px; line-height: 1.4;
+}
+
+/* The composed prose answer — the only localised text in the payload. */
+.fullanswer { margin: -6px 0 13px; font-size: 12px; }
+.fullanswer summary {
+  cursor: pointer; list-style: none; color: var(--text-faint);
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+}
+.fullanswer summary::-webkit-details-marker { display: none; }
+.fullanswer summary::before { content: '▸ '; }
+.fullanswer[open] summary::before { content: '▾ '; }
+.fullanswer p {
+  margin: 7px 0 0; white-space: pre-wrap; line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* ───────────────────────── the route's account of itself */
+.routecard {
+  margin: 12px 0; padding: 10px 12px; border-radius: 11px;
+  border: 1px solid rgba(79,209,197,.3); background: rgba(79,209,197,.06);
+  font-size: 11.5px;
+}
+/* A distance-only route is marked as such: it looks identical on the map to a
+ * steered one, so the difference has to be carried by the words. */
+.routecard.plain {
+  border-color: rgba(251,191,36,.32); background: rgba(251,191,36,.06);
+}
+.rc-top { display: flex; align-items: baseline; gap: 9px; margin-bottom: 6px; }
+.rc-len { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text-secondary); }
+.rc-obj { line-height: 1.5; color: var(--text-secondary); }
+.routecard.plain .rc-obj b { color: var(--marginal); }
+.rc-gaps { margin-top: 6px; font-size: 10.5px; color: var(--marginal); line-height: 1.45; }
+.rc-note { margin-top: 7px; font-size: 10px; color: var(--text-faint); line-height: 1.45; }
+.steer.on b { color: var(--favourable); }
+.steer.off b { color: var(--marginal); }
