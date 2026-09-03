@@ -287,7 +287,23 @@ def _resolve_window(state: OrcaGraphState, window_hours: int) -> tuple[dict | No
     carried = (state.get("session_context") or {}).get("resolved_time_window")
     if carried and carried.get("start_time"):
         return carried, "window carried from session context"
-    return None, "no time expression recognised in the query"
+
+    # Nothing named a time anywhere. Assume NOW, and say so.
+    #
+    # `valid_time` is a required argument on every time-aware tool, so a None
+    # window did not mean "any time" -- it meant each retrieval step raised
+    # before it reached a source and failed in 0 ms with ADAPTER_ERROR. The
+    # problem statement's own route query ("safest route from Kochi to
+    # Chennai") names no time and so came back BLOCKED with no wave or wind
+    # evidence at all, while the same place answered fully whenever the query
+    # happened to contain the word "tomorrow".
+    #
+    # An assumption stated in the resolution notes is honest. A silently empty
+    # answer is not, and it is the failure this system exists to avoid.
+    start_utc = now_ist.astimezone(timezone.utc)
+    return ({"start_time": start_utc.isoformat(),
+             "end_time": (start_utc + timedelta(hours=window_hours)).isoformat()},
+            "no time expression in the query; assumed now (IST)")
 
 
 def intent_context(state: OrcaGraphState, config=None) -> dict:

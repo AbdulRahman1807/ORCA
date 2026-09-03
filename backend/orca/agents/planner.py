@@ -14,6 +14,7 @@ source URLs, credentials or dataset ids, and executes nothing.
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 from ..assessment import thresholds as th
@@ -290,7 +291,12 @@ class PlannerAgent(Agent):
             spec = registry.spec(tool)
             args: dict[str, Any] = {"lat": location["lat"], "lon": location["lon"]}
             if "valid_time" in spec.args_schema.get("properties", {}):
-                args["valid_time"] = (window or {}).get("start_time")
+                # Never None: the argument is required, and a step handed None
+                # failed in 0 ms with no source attempted. The window resolver
+                # already defaults to now; this is the backstop for a caller
+                # that supplies a window without a start.
+                args["valid_time"] = ((window or {}).get("start_time")
+                                      or datetime.now(timezone.utc).isoformat())
             steps.append(PlanStep(step_id=f"s{i}", tool=tool, args=args,
                                   necessity=necessity, domain=spec.domains[0],
                                   parallel_group=1))

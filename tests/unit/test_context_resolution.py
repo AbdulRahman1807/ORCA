@@ -106,7 +106,27 @@ class TestTheWindowFollowsTheTurn:
         assert window == supplied
         assert "supplied by the caller" in note
 
-    def test_no_time_anywhere_is_reported_as_such(self):
+    def test_no_time_anywhere_assumes_now_and_says_so(self):
+        """A missing time is an ASSUMPTION, not an absence.
+
+        Returning None here meant the planner passed `valid_time=None` into
+        every time-aware tool, each of which raised before reaching a source.
+        "Safest route from Kochi to Chennai" names no time and so answered
+        nothing at all. Assume now, and put the assumption in the notes.
+        """
         window, note = win("is it safe?")
-        assert window is None
-        assert "no time expression" in note
+        assert window is not None
+        assert "no time expression" in note and "assumed now" in note
+
+        start = datetime.fromisoformat(window["start_time"])
+        assert abs(start - datetime.now(timezone.utc)) < timedelta(minutes=5)
+        assert start.tzinfo is not None
+
+    def test_the_assumed_window_still_loses_to_anything_explicit(self):
+        """The assumption is the LAST resort, below carried and caller windows."""
+        carried = {"start_time": "2026-09-04T00:30:00+00:00",
+                   "end_time": "2026-09-04T04:30:00+00:00"}
+        window, note = win("is it safe?",
+                           session_context={"resolved_time_window": carried})
+        assert window == carried
+        assert "assumed now" not in note
