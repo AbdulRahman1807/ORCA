@@ -35,6 +35,11 @@ FIELDS: dict[str, dict[str, Any]] = {
 }
 
 
+#: Longest axis a rendered field may have. Bounds the payload for a
+#: region-sized request without bounding the region.
+MAX_GRID_AXIS = 140
+
+
 class FieldError(Exception):
     def __init__(self, code: str, detail: str):
         super().__init__(f"{code}: {detail}")
@@ -81,6 +86,22 @@ def get_field(name: str, lat: float, lon: float, valid_time: datetime, *,
             dataset = binding.dataset_id
         source, source_id = "CMEMS", "S-07"
 
+    # A map of the whole Indian EEZ is ~20 degrees across, and CMEMS is a
+    # twelfth-degree grid, so an un-thinned request there is ~250 x 250 cells
+    # and over a megabyte of JSON. Thin to a fixed axis budget instead of
+    # capping the radius: the picture a reader wants is the SHAPE of the field
+    # across the region, and that survives subsampling. It is subsampling, not
+    # averaging -- every value returned is a real cell that was really
+    # measured, so a thinned grid still cannot invent a reading. The stride is
+    # reported so the client can say what it is showing.
+    stride = max(1, math.ceil(max(len(lats), len(lons)) / MAX_GRID_AXIS))
+    if stride > 1:
+        lats = list(lats)[::stride]
+        lons = list(lons)[::stride]
+        u = u[::stride, ::stride]
+        if v is not None:
+            v = v[::stride, ::stride]
+
     primary = u if v is None else np.sqrt(u ** 2 + v ** 2)
     valid = int(np.sum(~np.isnan(primary)))
     if valid == 0:
@@ -104,6 +125,10 @@ def get_field(name: str, lat: float, lon: float, valid_time: datetime, *,
         "range": {"min": round(float(np.nanmin(primary)), 4),
                   "max": round(float(np.nanmax(primary)), 4)},
         "advisory_only": True,
+        # Subsampled, never averaged: `stride` says how many source cells each
+        # returned cell steps over, so a reader knows the resolution shown is
+        # not the resolution held.
+        "grid": {"stride": stride, "thinned": stride > 1},
     }
     if spec["kind"] == "vector":
         out["u"] = _clean(u)

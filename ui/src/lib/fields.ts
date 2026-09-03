@@ -17,13 +17,13 @@ export interface FieldSpec {
 }
 
 export const FIELD_SPECS: FieldSpec[] = [
-  { name: 'wind', label: 'Wind', vector: true, radiusKm: 400 },
-  { name: 'current', label: 'Currents', vector: true, radiusKm: 400 },
-  { name: 'chlorophyll', label: 'Chlorophyll', vector: false, radiusKm: 250,
+  { name: 'wind', label: 'Wind', vector: true, radiusKm: 1500},
+  { name: 'current', label: 'Currents', vector: true, radiusKm: 1500},
+  { name: 'chlorophyll', label: 'Chlorophyll', vector: false, radiusKm: 1100,
     ramp: ['#082f49', '#0e7490', '#14b8a6', '#a3e635', '#fde047'] },
-  { name: 'sst', label: 'Sea temp', vector: false, radiusKm: 250,
+  { name: 'sst', label: 'Sea temp', vector: false, radiusKm: 1100,
     ramp: ['#1e3a8a', '#0ea5e9', '#fbbf24', '#f97316', '#dc2626'] },
-  { name: 'waves', label: 'Waves', vector: false, radiusKm: 250,
+  { name: 'waves', label: 'Waves', vector: false, radiusKm: 1100,
     ramp: ['#052e4a', '#0369a1', '#38bdf8', '#fbbf24', '#f43f5e'] }
 ];
 

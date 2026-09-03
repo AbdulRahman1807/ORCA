@@ -97,7 +97,11 @@ def get_weather(lat: float, lon: float, valid_time: datetime, *,
             [(SOURCE_ID,
               lambda sid, p: cmems.fetch_point(p, lat, lon, valid_time)),
              (GFS_SOURCE,
-              lambda sid, p: gfs.fetch_point(p, lat, lon, valid_time))])
+              lambda sid, p: gfs.fetch_point(p, lat, lon, valid_time))],
+            # CMEMS and GFS are peers here -- both publish the same wind
+            # components -- so CMEMS needing credentials must not discard the
+            # free forecast behind it.
+            fallback_on_auth=True)
     finally:
         if own_c:
             cmems.close()

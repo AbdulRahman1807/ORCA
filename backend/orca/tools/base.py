@@ -111,7 +111,8 @@ _UNUSABLE_FOR_REQUEST = "unusable_for_request"
 
 
 def collect_from_sources(tool: str, parameters, lat: float, lon: float,
-                         valid_time, sources, *, fallback_on_stale: bool = True):
+                         valid_time, sources, *, fallback_on_stale: bool = True,
+                         fallback_on_auth: bool = False):
     """Point query across an ordered list of sources.
 
     `sources` is [(source_id, fetch), ...] in preference order. For each
@@ -121,8 +122,26 @@ def collect_from_sources(tool: str, parameters, lat: float, lon: float,
 
     Fallback is attempted on transport failure (SOURCE_UNAVAILABLE, TIMEOUT,
     RATE_LIMITED), on NO_DATA, and -- when `fallback_on_stale` -- on results that
-    fall outside the requested window. It is NEVER attempted on AUTH_REQUIRED:
-    a credential problem is not fixed by silently switching authority.
+    fall outside the requested window.
+
+    AUTH_REQUIRED is different, and the right answer depends on what the sources
+    ARE to each other:
+
+      * When a source is an AUTHORITY, its statement has no substitute. If IMD
+        will not say whether a warning is in force, answering from a model is
+        not a fallback, it is a different and lesser claim wearing the same
+        name. That stays forbidden, and it is why `fallback_on_auth` defaults
+        to False.
+
+      * When the sources are PEERS -- two providers of the same physical
+        quantity -- a credential problem at the first is no reason to discard
+        the second. Wind is the case in point: CMEMS needs credentials, NOAA
+        GFS is free and open, and breaking the chain on CMEMS's 401 threw away
+        a working forecast. Every safety verdict then lost `wind_speed` and
+        collapsed to INSUFFICIENT_EVIDENCE, so an answerable question was
+        refused because a source ORCA never needed said no.
+
+    Callers whose sources are peers opt in with `fallback_on_auth=True`.
     """
     from ..schemas.enums import EnvelopeStatus
     from ..schemas.errors import ErrorCode, FALLBACK_CODES, OrcaError
@@ -167,7 +186,11 @@ def collect_from_sources(tool: str, parameters, lat: float, lon: float,
                 attempts.append((source_id, OrcaError(
                     code=code, subject=param, tool=tool, detail=detail[:300],
                     source_id=source_id, severity="warning")))
-                if code is ErrorCode.AUTH_REQUIRED or code not in eligible:
+                if code is ErrorCode.AUTH_REQUIRED:
+                    if not fallback_on_auth:
+                        break
+                    continue                  # a peer may still serve this
+                if code not in eligible:
                     break
                 continue
 

@@ -70,8 +70,12 @@ class TestFallbackSelection:
                                             [ErrorCode.STALE_DATA], "B"))])
         assert env.data[0].value == 27.7
 
-    def test_auth_required_never_triggers_a_fallback(self):
-        """A credential problem is not fixed by silently switching authority."""
+    def test_auth_required_does_not_fall_back_to_a_different_authority(self):
+        """The default: an authority's statement has no substitute.
+
+        If IMD will not say whether a warning is in force, answering from a
+        model is not a fallback -- it is a lesser claim wearing the same name.
+        """
         calls = []
 
         def primary(sid, p):
@@ -87,6 +91,50 @@ class TestFallbackSelection:
         assert calls == ["S-A"]
         assert env.status.value == "error"
         assert ErrorCode.AUTH_REQUIRED in env.codes()
+
+    def test_auth_required_falls_through_to_a_peer_when_opted_in(self):
+        """Peers are a different case, and this one cost every safety verdict.
+
+        CMEMS and NOAA GFS both publish the same wind components. CMEMS needs
+        credentials; GFS is free and open. Breaking the chain on CMEMS's 401
+        discarded a working forecast, so `wind_speed` went missing, SAFETY
+        collapsed to INSUFFICIENT_EVIDENCE, and an answerable question was
+        refused because of a source ORCA never needed.
+        """
+        calls = []
+
+        def paid(sid, p):
+            calls.append(sid)
+            raise _Fail(ErrorCode.AUTH_REQUIRED)
+
+        def free(sid, p):
+            calls.append(sid)
+            return _Result(27.7, WIN_START, dataset="B")
+
+        env = collect_from_sources("get_weather", ["sst"], 9.93, 76.26,
+                                   WIN_START, [("S-A", paid), ("S-B", free)],
+                                   fallback_on_auth=True)
+        assert calls == ["S-A", "S-B"], "the peer was never tried"
+        assert env.data[0].value == 27.7
+        assert env.status.value != "error"
+
+    def test_opting_in_does_not_swallow_the_auth_failure(self):
+        """Falling through still RECORDS that the first source refused.
+
+        The answer may not quietly imply the preferred source was consulted
+        successfully; the switch has to remain visible in the trace.
+        """
+        def paid(sid, p):
+            raise _Fail(ErrorCode.AUTH_REQUIRED)
+
+        def free(sid, p):
+            return _Result(27.7, WIN_START, dataset="B")
+
+        env = collect_from_sources("get_weather", ["sst"], 9.93, 76.26,
+                                   WIN_START, [("S-A", paid), ("S-B", free)],
+                                   fallback_on_auth=True)
+        assert any("S-B" in str(r) for r in env.source_resolution), \
+            "the serving source is not recorded"
 
 
 class TestStalenessPolicy:

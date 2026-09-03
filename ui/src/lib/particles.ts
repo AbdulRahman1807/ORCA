@@ -108,7 +108,9 @@ export class ParticleLayer {
   private particles: Particle[] = [];
   private raf: number | null = null;
   private running = false;
-  private count = 2400;
+  private count = 2400;          // floor, for a small field
+  private perDegree = 26;        // particles per square degree of field
+  private maxCount = 6000;       // ceiling, for the frame budget
   private maxAge = 90;
   private speedScale = 0.055;
 
@@ -151,9 +153,15 @@ export class ParticleLayer {
   set(data: ORCAField) {
     this.field = new VectorField(data);
     this.particles = [];
-    for (let i = 0; i < Math.min(this.count, 3200); i++) {
-      this.particles.push(this.spawn());
-    }
+    // Density, not count. The field used to be a ~7-degree box around one
+    // port; covering the whole EEZ makes it nearer 27 degrees, and reusing a
+    // fixed particle count over fifteen times the area drew a flow so sparse
+    // it read as empty water. Scale with area and cap for the frame budget.
+    const b = this.field.bounds();
+    const area = Math.max(1, (b.maxLat - b.minLat) * (b.maxLon - b.minLon));
+    const n = Math.round(Math.min(this.maxCount,
+                                  Math.max(this.count, area * this.perDegree)));
+    for (let i = 0; i < n; i++) this.particles.push(this.spawn());
     this.start();
   }
 

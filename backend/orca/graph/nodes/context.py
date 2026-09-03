@@ -19,16 +19,54 @@ from ..state import OrcaGraphState
 
 IST = ZoneInfo("Asia/Kolkata")
 
-#: A placeholder gazetteer. STATUS: a real deployment needs a proper gazetteer
-#: with admin boundaries and alternate spellings; this covers the demo ports and
-#: fails closed (asking the user) for anything else.
+#: Ports and landfalls ORCA can name. STATUS: still a hand-built list, not a
+#: real gazetteer with admin boundaries and alternate spellings -- but wide
+#: enough that the common Indian coastal question resolves instead of asking.
+#: It fails CLOSED: a place not here is asked about, never guessed at.
+#:
+#: Coordinates are the port or landfall itself. Routing snaps an endpoint to
+#: navigable water within 30 km, so a harbour sitting inland is fine.
 GAZETTEER: dict[str, tuple[float, float]] = {
+    # --- Gujarat / north-west ------------------------------------------
+    "kandla": (23.03, 70.22), "mundra": (22.84, 69.72),
+    "okha": (22.47, 69.07), "porbandar": (21.64, 69.60),
+    "veraval": (20.90, 70.37), "diu": (20.71, 70.99),
+    "hazira": (21.10, 72.65), "surat": (21.17, 72.83),
+    "daman": (20.40, 72.83),
+    # --- Maharashtra / Goa ---------------------------------------------
+    "mumbai": (18.94, 72.83), "bombay": (18.94, 72.83),
+    "nhava sheva": (18.95, 72.95), "jnpt": (18.95, 72.95),
+    "ratnagiri": (16.99, 73.30), "vengurla": (15.86, 73.63),
+    "goa": (15.42, 73.80), "mormugao": (15.40, 73.80),
+    "panaji": (15.50, 73.83),
+    # --- Karnataka / Kerala --------------------------------------------
+    "karwar": (14.81, 74.13), "malpe": (13.35, 74.70),
+    "mangalore": (12.87, 74.84), "mangaluru": (12.87, 74.84),
+    "kasaragod": (12.50, 74.99), "kannur": (11.87, 75.35),
+    "kozhikode": (11.25, 75.78), "calicut": (11.25, 75.78),
+    "beypore": (11.17, 75.80), "ponnani": (10.77, 75.92),
     "kochi": (9.93, 76.26), "cochin": (9.93, 76.26),
-    "chennai": (13.08, 80.29), "mumbai": (18.94, 72.83),
-    "visakhapatnam": (17.69, 83.30), "vizag": (17.69, 83.30),
-    "mangalore": (12.87, 74.84), "goa": (15.42, 73.80),
+    "alappuzha": (9.50, 76.34), "alleppey": (9.50, 76.34),
+    "kollam": (8.89, 76.59), "vizhinjam": (8.38, 76.99),
+    "thiruvananthapuram": (8.49, 76.95), "trivandrum": (8.49, 76.95),
+    # --- Tamil Nadu / south --------------------------------------------
     "kanyakumari": (8.08, 77.55), "tuticorin": (8.76, 78.13),
-    "paradip": (20.26, 86.67), "kolkata": (22.57, 88.36),
+    "thoothukudi": (8.76, 78.13), "rameswaram": (9.29, 79.31),
+    "nagapattinam": (10.77, 79.84), "karaikal": (10.92, 79.84),
+    "cuddalore": (11.72, 79.77), "puducherry": (11.93, 79.83),
+    "pondicherry": (11.93, 79.83), "chennai": (13.08, 80.29),
+    "madras": (13.08, 80.29), "ennore": (13.24, 80.33),
+    # --- Andhra / Odisha / Bengal --------------------------------------
+    "krishnapatnam": (14.25, 80.12), "nellore": (14.45, 80.05),
+    "machilipatnam": (16.17, 81.14), "kakinada": (16.94, 82.25),
+    "visakhapatnam": (17.69, 83.30), "vizag": (17.69, 83.30),
+    "gopalpur": (19.26, 84.92), "puri": (19.80, 85.83),
+    "paradip": (20.26, 86.67), "dhamra": (20.79, 86.98),
+    "digha": (21.63, 87.53), "haldia": (22.03, 88.10),
+    "kolkata": (22.57, 88.36), "calcutta": (22.57, 88.36),
+    # --- Islands --------------------------------------------------------
+    "port blair": (11.62, 92.73), "kavaratti": (10.57, 72.64),
+    "minicoy": (8.28, 73.05),
 }
 
 _LATLON = re.compile(

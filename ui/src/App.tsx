@@ -44,7 +44,11 @@ function App() {
   const routeProps: ORCARouteProps | null =
     (routeLayer?.data?.properties as ORCARouteProps) ?? null;
   const location = result?.resolved_location ?? null;
-  const centre = { lat: location?.lat ?? 9.93, lon: location?.lon ?? 76.26 };
+  // With no question asked yet, the field covers the Indian EEZ rather than
+  // one port. Centring on Kochi drew a box over the south-west corner and left
+  // the rest of the coast empty, which reads as "no wind there" rather than
+  // "not fetched there" -- the same mistake as painting a masked cell blue.
+  const centre = { lat: location?.lat ?? 15.0, lon: location?.lon ?? 80.0 };
 
   useEffect(() => {
     fetchSourceHealth().then((d) => setSources(d.sources)).catch(() => setSources([]));

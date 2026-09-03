@@ -494,7 +494,7 @@ def health_sources():
 @app.get("/v1/field/{name}")
 def get_field_endpoint(name: str,
                        lat: float = Query(...), lon: float = Query(...),
-                       radius_km: float = Query(300.0, ge=10, le=800),
+                       radius_km: float = Query(300.0, ge=10, le=2500),
                        valid_time: str | None = Query(default=None)):
     """A gridded field for map rendering: wind, current, chlorophyll, sst, waves.
 
