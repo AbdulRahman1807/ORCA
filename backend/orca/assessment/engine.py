@@ -418,7 +418,14 @@ def assess_domain(domain: Domain, pool: EvidencePool, *,
         if _VERDICT_SEVERITY.index(verdict) < _VERDICT_SEVERITY.index(cap_verdict):
             verdict = cap_verdict
             # The ceiling, not a favourable driver, is what governs the answer.
+            # No DRIVER is limiting in this case: the governing factor is a
+            # check that could not be made, not a value that was measured.
+            # Leaving the pre-cap driver marked "limiting" made the answer
+            # contradict itself -- the card said wave height governed while the
+            # headline said the missing warning check did.
             limiting = factor
+            for d in drivers:
+                d.contribution = "supporting"
         else:
             limiting = worst.factor
         worst_factor = limiting

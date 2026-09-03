@@ -14,10 +14,13 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import math
 import io
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterable
+
+import numpy as np
 
 from ...geospatial.geometry import haversine_km
 from ...schemas.core import Provenance, QualityMetadata, SpatialRef, TemporalRef, utcnow
@@ -119,6 +122,75 @@ class NoaaGfsAdapter:
                 f"({lo:%Y-%m-%d %H:%M}Z..{hi:%Y-%m-%d %H:%M}Z)")
 
         return self._fetch_one(binding, lat, lon, valid_time)
+
+    def fetch_grid(self, parameters: list[str], lat: float, lon: float,
+                   valid_time: datetime, radius_km: float = 300.0):
+        """A rectangular field for one or more parameters, with its axes.
+
+        Requested as an ERDDAP range selector rather than cell by cell, so a
+        whole map is one HTTP call. Returns (lats, lons, {param: block}, time).
+
+        The grid is published on longitude 0..360 with latitude DECREASING, so
+        the selector must be emitted in axis order or the server silently
+        returns an empty or transposed block.
+        """
+        bindings = []
+        for p in parameters:
+            b = BINDINGS.get(p)
+            if not b:
+                raise GfsError(ErrorCode.DATASET_UNAVAILABLE,
+                               f"{p!r} has no GFS binding")
+            bindings.append(b[0])
+
+        lo, hi = self.coverage()
+        if not (lo <= valid_time <= hi):
+            raise GfsError(
+                ErrorCode.INSUFFICIENT_COVERAGE,
+                f"{valid_time:%Y-%m-%dT%H:%MZ} lies outside the GFS run")
+
+        dlat = radius_km / 111.32
+        dlon = radius_km / max(111.32 * math.cos(math.radians(lat)), 1e-6)
+        lat_hi, lat_lo = min(90.0, lat + dlat), max(-90.0, lat - dlat)
+        lon_a = (lon - dlon) % 360.0
+        lon_b = (lon + dlon) % 360.0
+        if lon_a > lon_b:                      # antimeridian: clamp, do not wrap
+            lon_a, lon_b = 0.0, 359.5
+
+        t = _iso(valid_time)
+        # latitude is stored decreasing, so high:low
+        sel = ",".join(
+            f"{b.variable}[({t})][({lat_hi}):({lat_lo})][({lon_a}):({lon_b})]"
+            for b in bindings)
+        resp = self._client.get_text(f"griddap/{bindings[0].dataset_id}.csv", sel)
+        rows = _rows(resp.payload)
+        if not rows:
+            raise GfsError(ErrorCode.NO_DATA, "no GFS rows for the requested area")
+
+        lats, lons = [], []
+        for r in rows:
+            la = float(r["values"]["latitude"])
+            ln = float(r["values"]["longitude"])
+            if la not in lats:
+                lats.append(la)
+            if ln not in lons:
+                lons.append(ln)
+        lat_ix = {v: i for i, v in enumerate(lats)}
+        lon_ix = {v: i for i, v in enumerate(lons)}
+
+        blocks = {b.parameter: np.full((len(lats), len(lons)), np.nan)
+                  for b in bindings}
+        actual = None
+        for r in rows:
+            y = lat_ix[float(r["values"]["latitude"])]
+            x = lon_ix[float(r["values"]["longitude"])]
+            actual = actual or _parse_time(r["values"]["time"])
+            for b in bindings:
+                raw = r["values"].get(b.variable)
+                if raw not in (None, "", "NaN"):
+                    blocks[b.parameter][y][x] = float(raw)
+        # report longitudes in the -180..180 frame the client draws in
+        out_lons = [((v + 180.0) % 360.0) - 180.0 for v in lons]
+        return lats, out_lons, blocks, (actual or valid_time)
 
     def _fetch_one(self, binding: GfsBinding, lat: float, lon: float,
                    valid_time: datetime) -> GfsPointResult:

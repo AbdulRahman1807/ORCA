@@ -1272,3 +1272,194 @@ is the structural-guard argument (D-10) working on its author.
 **398 tests.** Verified live end to end: Kochi to Chennai returns a 76-point
 GeoJSON LineString, 996.6 km, no waypoint on land, marked `advisory_only`, with
 a registered derivation and three de-duplicated geofence alerts.
+
+---
+
+## 20. Session 10 — gridded fields for the map
+
+The UI needs fields, not points. Three additions, all behind the existing
+layering: adapters gained a grid read, `tools/fields.py` is a capability tool
+like any other, and the API exposes it.
+
+### 20.1 A hole must stay a hole
+
+**D-41 · A masked cell reaches the client as `null`, and coverage is reported.**
+`fetch_local_field` flattens and drops NaNs, which is right for computing a
+median and wrong for drawing a map. `fetch_grid` keeps the grid shape, its
+axes, and its holes. Land-masked wave cells and cloud-masked ocean colour are
+`null` in the JSON, and every field carries
+`cells: {total, valid, coverage}` so a renderer can show partial coverage
+honestly instead of implying a complete picture.
+
+Drawn as `0.0`, a masked cell paints a calm, empty sea over data that was never
+there. That is F-10 and D-3 restated in pixels, and it is the one way a
+beautiful map could undo everything the backend guarantees.
+
+Live: chlorophyll around Kochi returns an 87x87 grid at **coverage 0.502** —
+3,769 null cells, which is the coastline and the cloud, visible as gaps.
+
+### 20.2 Endpoints
+
+| Endpoint | Serves |
+|---|---|
+| `GET /v1/field/{name}` | `wind`, `current` (vector: u, v, speed); `chlorophyll`, `sst`, `waves` (scalar) |
+| `GET /v1/fields` | what fields exist, with kind and unit |
+| `GET /v1/boundaries` | maritime boundary geometry as GeoJSON, bbox-filtered |
+| `GET /v1/boundaries/layers` | the snapshot's layers and version |
+
+**D-42 · The map draws the same geometry the verdict used.**
+`/v1/boundaries` serves from the versioned snapshot, not a live WFS call, so
+what a user sees is what the REGULATORY assessment was decided against, and the
+response carries the `dataset_version` that says which. Rings are **decimated
+for display only** — an EEZ ring runs to hundreds of thousands of vertices and
+would lock a browser — while containment and distance continue to use full
+precision (D-14). The response says so.
+
+**Caching.** Fields are large and slow (wind 7 s, chlorophyll 23 s), so they are
+cached on an hourly key — finer than any of the products actually update.
+
+### 20.3 Notes
+
+* GFS is published on longitude 0..360 with latitude **decreasing**, so a range
+  selector must be emitted in axis order or the server returns an empty or
+  transposed block. Requested as one range call rather than cell by cell, so a
+  whole map is a single HTTP request.
+* `BoundaryFeature` uses `__slots__`, so `vars()` raises on it — attributes are
+  read from `__slots__` instead.
+* Field adapters are held for the process in the FastAPI lifespan, like the
+  tool registry (F-39).
+
+---
+
+## 21. Session 11 — the interface
+
+`backend/orca/api/static/` — one page, no build step, served at `/ui/`.
+MapLibre for the map, a canvas particle layer for vector fields, vanilla JS
+for the rest.
+
+### 21.1 What it shows
+
+* **The agent trace, live.** Every graph node streams in over SSE as it
+  completes, with the tool name, the source that served it, the canonical codes
+  and the duration. This is the differentiator made visible: a dashboard cannot
+  show a plan being formed. It needs nothing from the backend that
+  `/v1/chat/stream` was not already emitting.
+* **Threshold gauges** rather than bare numbers — each driver drawn against the
+  favourable / marginal / unfavourable / unsafe bands, with the limiting factor
+  marked.
+* **Independent verdict cards** that visibly do not merge, each carrying its
+  confidence and its "not checked" list.
+* **Geofence alerts** with distance, dataset version and `advisory only`.
+* **Provenance on click**: any evidence id opens its source, dataset, access
+  method and derivation.
+* **Source health**: 8 of 12, and the four gaps say why.
+* **Field layers**: wind and currents as animated particles, chlorophyll, SST
+  and waves as rasters.
+
+### 21.2 The rule the interface inherits
+
+**D-43 · A hole is drawn as a hole.**
+Scalar fields rasterise `null` to a transparent pixel and the legend states the
+coverage percentage and how many cells are masked. A masked cell painted as
+`0.0` would show a calm, empty sea over data that was never collected. Every
+guarantee the backend makes could be undone by a renderer that quietly fills
+gaps, so it does not.
+
+The same applies to a field that fails: the legend says the layer is **absent,
+not empty**, with the reason.
+
+### 21.3 Three bugs, all the same bug
+
+| ID | Finding |
+|---|---|
+| **F-51** | **A blocked basemap stalled the entire application.** The initial style contained a remote raster source, and MapLibre holds a style unloaded until its sources resolve — so `map.on('load')` never fired, and boundaries, the particle layer and the debug handle never initialised. The style now contains **no remote source**; the basemap is added afterwards as a cosmetic extra with a second tile host as fallback. |
+| **F-52** | **`map.on('load')` waits for TILES**, not for the style. Map-dependent setup now keys off `style.load` with an unconditional grace-period fallback, so a throttled or headless renderer cannot stop the app. |
+| **F-53** | **An unloaded map style replaced the whole answer with an error.** `drawRunLayers` threw `Style is not done loading`, the exception propagated to the fetch `.catch`, and the user saw "Request failed" instead of a complete, correct verdict that had already arrived. The answer is now rendered first and the map drawn after, isolated. |
+
+All three are the same mistake in three places: **letting the map gate the
+product.** The answer is the product; the map is an enhancement. Verified by
+running with the basemap entirely unavailable — trace, verdicts, gauges, alerts,
+evidence and provenance all render.
+
+### 21.4 Not verified
+
+The **map rendering itself** could not be confirmed in this environment: the
+preview pane never completes a MapLibre frame, so the basemap, boundary
+polygons, route line and particle layer are unverified visually. The code paths
+around them are exercised and fail safe. **Check them in a real browser before
+relying on them in a demo.**
+
+### 21.5 Two bugs the interface found in the graph
+
+Driving the graph through a real conversation surfaced defects no single-shot
+test could see.
+
+| ID | Finding |
+|---|---|
+| **F-54** | **Every append-reduced channel accumulated across conversation turns.** `add` is correct for parallel branches within one run, but a checkpointed thread reuses its state, so turn three showed turn one's REGULATORY verdict beside turn three's SAFETY verdict, and three geofence alerts became six. A follow-up question was presenting a stale answer as current. |
+| **F-55** | **`run_id` was restored from the checkpoint**, so every turn in a thread shared one id. A run id identifies one RUN; the conversation is the `thread_id`. The audit trail could not tell two answers apart. |
+
+**D-44 · Append-reduced channels are scoped to a run, not to a thread.**
+`add_or_reset` clears a channel when its update begins with a sentinel, and
+`ingest` clears every accumulator at the head of each turn. The sentinel is
+**composable** — `RESET + [event]` clears then writes — because a node that both
+resets and writes the same channel would otherwise have its reset silently
+overwritten by the later key in the same dict.
+
+Resolved CONTEXT still carries: `session_context` keeps the location and window,
+so "is it safe?" after "am I inside the EEZ near Kochi?" still knows where.
+
+| ID | Finding |
+|---|---|
+| **F-56** | **The stream collapsed parallel retrieval to a single line.** `/v1/chat/stream` emitted only the newest `node_event` per superstep, so a fan-out that ran seven tools at once showed one. The trace exists precisely to show that fan-out. It now emits every new event; the fishing query renders all seven tools. |
+
+### 21.6 Verified in a real browser
+
+Basemap (Esri Ocean Base, bathymetry-shaded, key-free, with CARTO and OSM as
+fallbacks), 6 EEZ features, boundary lines, the particle layer, all seven tool
+nodes in the trace, three verdict cards, five threshold gauges, three geofence
+alerts, nine evidence items with click-through provenance, and a three-turn
+conversation that carries context without accumulating state.
+
+Panels dock to the bottom below 1120 px so the trace cannot cover the answer on
+a laptop screen.
+
+### 21.7 A question the user could not see
+
+Reported as "it didn't ask me anything, no output". It had asked — the answer
+was rendered and then covered.
+
+| ID | Finding |
+|---|---|
+| **F-57** | **The agent trace auto-opened on top of the clarifying question.** For a clarification the trace is five instant nodes and pure noise, while the one thing the user needed was the question underneath it. The trace panel now CLOSES when ORCA is asking rather than answering, the question renders in its own card, and the input is focused with a worked example as its placeholder (`e.g. "near Kochi" or "9.93N 76.26E"`). A question the user cannot see is not a question. |
+
+Also fixed: `/ui` assets are served `no-store`. A stale `app.js` is
+indistinguishable from a bug and cost two debugging rounds.
+
+### 21.8 Self-inflicted
+
+`app.js` was destroyed mid-session by a careless `str.replace()` — Python
+replaces EVERY occurrence, and the pattern recurred, producing a 1.5 MB file of
+duplicated blocks. The file was untracked, so there was no copy to restore.
+Rewritten from scratch with every fix folded in.
+
+The lesson is a process one and worth writing down: **the editing technique used
+throughout this project — scripted whole-string replacement — is unsafe on
+repeated content.** Commit before large edits to untracked files, and prefer
+anchored, single-occurrence replacements.
+
+### 21.9 An answer that contradicted itself
+
+Reading a real answer closely found two defects that every automated check had
+passed.
+
+| ID | Finding |
+|---|---|
+| **F-58** | **A capped SAFETY verdict contradicted its own headline.** When the cap raises the verdict, `limiting_factor` correctly becomes `official_warning_status` — but the DRIVERS still carried `contribution="limiting"` on wave height from before the cap. The card marked wave height as governing while the headline said the missing warning check did. Only one can be true, and it is the headline: the governing factor is a check that could not be made, not a value that was measured. No driver is marked limiting when a cap governs. |
+| **F-59** | **Boundary containment rendered as "absent".** The interface drew every boolean driver as present/absent, so REGULATORY showed `EEZ — absent`, which reads as *there is no EEZ* rather than *you are outside it*. Those are different claims and the second is the true one. A boolean now reads inside/outside in REGULATORY and present/absent elsewhere. |
+
+Both were invisible to the test suite because each part was individually
+correct: the engine's `limiting_factor` was right, the drivers' contributions
+were right *before* the cap, and the renderer faithfully drew what it was given.
+The defect was in the relationship between them, which only shows when a person
+reads the whole answer.

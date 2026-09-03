@@ -353,3 +353,48 @@ class TestBulletinsArePrimaryEvidenceForFishing:
                                   kind=ValueKind.OBSERVED))
         a = fishing(pool)
         assert any(d.factor == "pfz_distance_km" for d in a.drivers)
+
+
+class TestACappedVerdictDoesNotContradictItself:
+    """The card said wave height governed while the headline said the missing
+    warning check did. Only one of those can be true."""
+
+    def _capped(self):
+        from backend.orca.schemas.errors import ErrorCode
+        failed = OrcaEnvelope.failure("get_marine_warnings", ErrorCode.AUTH_REQUIRED,
+                                      "IMD credentials not granted",
+                                      subject="official_warning_status")
+        return pool_with(
+            make_env("get_wave_conditions", {"significant_wave_height": (0.4, "m")}),
+            make_env("get_weather", {"wind_speed": (2.0, "m s-1")}),
+            failed)
+
+    def test_no_driver_claims_to_be_limiting_when_a_cap_governs(self):
+        a = safety(self._capped())
+        assert a.verdict_capped_by == ["official_warning_status"]
+        assert a.limiting_factor == "official_warning_status"
+        assert not [d for d in a.drivers if d.contribution == "limiting"]
+
+    def test_a_driver_still_leads_when_no_cap_applies(self):
+        """The cap must not blank the limiting factor in the ordinary case."""
+        pool = pool_with(
+            make_env("get_wave_conditions", {"significant_wave_height": (4.2, "m")}),
+            make_env("get_weather", {"wind_speed": (2.0, "m s-1")}),
+            no_warning_env())
+        a = safety(pool)
+        assert a.verdict_capped_by == []
+        assert [d.factor for d in a.drivers if d.contribution == "limiting"] \
+            == ["significant_wave_height"]
+
+    def test_a_cap_that_does_not_raise_the_verdict_leaves_the_driver_leading(self):
+        """Seas already worse than the ceiling: the sea still governs."""
+        a = safety(pool_with(
+            make_env("get_wave_conditions", {"significant_wave_height": (4.2, "m")}),
+            make_env("get_weather", {"wind_speed": (2.0, "m s-1")}),
+            OrcaEnvelope.failure("get_marine_warnings",
+                                 __import__("backend.orca.schemas.errors",
+                                            fromlist=["ErrorCode"]).ErrorCode.AUTH_REQUIRED,
+                                 "no credentials", subject="official_warning_status")))
+        assert a.verdict is Verdict.UNSAFE
+        assert [d.factor for d in a.drivers if d.contribution == "limiting"] \
+            == ["significant_wave_height"]

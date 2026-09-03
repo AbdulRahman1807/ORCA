@@ -38,7 +38,10 @@ _LATLON = re.compile(
 
 def ingest(state: OrcaGraphState, config=None) -> dict:
     started = time.perf_counter()
-    run_id = state.get("run_id") or f"run-{uuid.uuid4().hex[:12]}"
+    # A run_id identifies ONE run, not the conversation -- that is the
+    # thread_id. Restoring it from the checkpoint made every turn in a thread
+    # share an id, so the audit trail could not tell two answers apart.
+    run_id = f"run-{uuid.uuid4().hex[:12]}"
     
     # Detect language from query text if not provided
     from ...i18n.detect import detect_language
@@ -46,15 +49,29 @@ def ingest(state: OrcaGraphState, config=None) -> dict:
     if not lang:
         lang = detect_language(state.get("query_text") or "")
         
+    from ..state import RESET
+
+    # A checkpointed thread carries the previous turn's accumulated channels.
+    # Clearing them here scopes every append-reduced field to THIS run, so a
+    # follow-up question cannot inherit the last answer's verdicts or alerts.
     return {
+        "resolution_notes": RESET, "unavailable_capabilities": RESET,
+        "tool_results": RESET, "step_results": RESET, "modifications": RESET,
+        "normalized_data": RESET, "fallbacks_used": RESET, "evidence_gaps": RESET,
+        "derived": RESET, "layers": RESET, "assessments": RESET,
+        "conflicts": RESET, "not_evaluated": RESET, "alerts": RESET,
+        "map_layers": RESET, "evidence": RESET, "claims": RESET,
+        "provenance": RESET, "errors": RESET,
         "run_id": run_id,
-        "trace_id": state.get("trace_id") or run_id,
+        "trace_id": run_id,
         "language": lang,
         "session_context": state.get("session_context") or {},
         "attempts": state.get("attempts", 0),
         "plan_version": state.get("plan_version", 0),
-        "node_events": [node_event("ingest", "success", started=started,
-                                   summary=f"run {run_id}")],
+        # RESET + the event: clear the previous turn's trace, then start this
+        # one. A bare RESET here would be overwritten by this same key.
+        "node_events": RESET + [node_event("ingest", "success", started=started,
+                                           summary=f"run {run_id}")],
     }
 
 
