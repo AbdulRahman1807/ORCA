@@ -4,6 +4,7 @@ The run is checkpointed at the interrupt, so the process may restart while a
 reviewer decides. Nothing is delivered until a decision is recorded.
 """
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 from langgraph.checkpoint.memory import MemorySaver
@@ -22,7 +23,19 @@ from backend.orca.schemas.envelope import OrcaEnvelope
 from backend.orca.tools.registry import ToolRegistry
 
 UTC = timezone.utc
-WIN_START = datetime(2026, 9, 3, 0, 0, tzinfo=UTC)
+def _tomorrow_morning_utc() -> datetime:
+    """The window "tomorrow morning" actually resolves to, computed the same way.
+
+    These fixtures used to hardcode a date, which meant the suite passed only
+    until that date arrived and then failed for reasons that had nothing to do
+    with the code. Deriving it from `now` keeps the fixture and the query saying
+    the same thing forever.
+    """
+    base = datetime.now(ZoneInfo("Asia/Kolkata")) + timedelta(days=1)
+    return base.replace(hour=6, minute=0, second=0,
+                        microsecond=0).astimezone(UTC)
+
+WIN_START = _tomorrow_morning_utc()
 WIN = {"start_time": WIN_START.isoformat(),
        "end_time": (WIN_START + timedelta(hours=4)).isoformat()}
 LOC = {"lat": 9.93, "lon": 76.26, "label": "near Kochi"}
@@ -94,7 +107,7 @@ class TestInterruptAndResume:
         config = _config(registry, "t-1")
         result = graph.invoke(
             {"query_text": "is it safe near Kochi tomorrow morning?",
-             "resolved_location": LOC, "resolved_time_window": WIN}, config)
+             "client_location": LOC, "client_time_window": WIN}, config)
 
         assert "__interrupt__" in result, "the run should pause for review"
         payload = result["__interrupt__"][0].value
@@ -106,7 +119,7 @@ class TestInterruptAndResume:
         graph = build_graph(checkpointer=MemorySaver())
         config = _config(registry, "t-2")
         graph.invoke({"query_text": "is it safe near Kochi tomorrow morning?",
-                      "resolved_location": LOC, "resolved_time_window": WIN}, config)
+                      "client_location": LOC, "client_time_window": WIN}, config)
 
         final = graph.invoke(Command(resume={
             "reviewer_id": "u-9", "reviewer_role": "officer",
@@ -125,7 +138,7 @@ class TestInterruptAndResume:
         config = _config(registry, "t-3")
         build_graph(checkpointer=saver).invoke(
             {"query_text": "is it safe near Kochi tomorrow morning?",
-             "resolved_location": LOC, "resolved_time_window": WIN}, config)
+             "client_location": LOC, "client_time_window": WIN}, config)
 
         # A brand-new graph object, same checkpointer and thread.
         final = build_graph(checkpointer=saver).invoke(
@@ -140,7 +153,7 @@ class TestOfficialWarningGoverns:
         graph = build_graph(checkpointer=MemorySaver())
         config = _config(registry, "t-4")
         graph.invoke({"query_text": "is it safe near Kochi tomorrow morning?",
-                      "resolved_location": LOC, "resolved_time_window": WIN}, config)
+                      "client_location": LOC, "client_time_window": WIN}, config)
         final = graph.invoke(Command(resume={
             "reviewer_id": "u-9", "reviewer_role": "officer", "decision": "approved",
             "rationale": "ok", "reviewed_at": "2026-09-02T12:00:00+00:00"}), config)

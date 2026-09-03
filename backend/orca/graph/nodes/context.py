@@ -162,24 +162,56 @@ def _query_names_a_place(state: OrcaGraphState) -> bool:
     return False
 
 
+#: Words that may sit between `to` and a place without changing what it means:
+#: "to the port of Chennai" still names Chennai.
+_DEST_FILLER = re.compile(
+    r"^(?:the|a|an|towards?|near|off|around|port\s+of|city\s+of|coast\s+of)\s+")
+
+
+def _place_at_start(fragment: str, lang: str) -> str | None:
+    """The place a fragment NAMES, or None when it merely mentions one.
+
+    `to` is an infinitive marker at least as often as it is a preposition, and
+    the two readings put the place in completely different roles:
+
+        "safest route TO Chennai"          -> Chennai is the destination
+        "is it safe TO go out near Kochi"  -> Kochi is where the asker IS
+
+    A substring search cannot tell them apart. It found `kochi` in the middle of
+    a verb phrase, made it the destination, and then excluded it from origin
+    matching -- so the commonest phrasing of the commonest question resolved no
+    location at all and asked "where?" (F-72).
+
+    Anchoring the name to the START of the fragment separates them: a
+    destination follows `to` directly, give or take a determiner.
+    """
+    frag = fragment.lower().strip()
+    while True:
+        m = _DEST_FILLER.match(frag)
+        if not m:
+            break
+        frag = frag[m.end():]
+    # Longest first, so a name that prefixes another cannot shadow it.
+    for key in sorted(GAZETTEER, key=len, reverse=True):
+        if re.match(rf"{re.escape(key)}\b", frag):
+            return key
+    if lang != "en":
+        from ...i18n.generate import native_place
+        return native_place(lang, frag)
+    return None
+
+
 def _route_endpoints(state, text: str) -> tuple[str | None, str | None]:
     """(origin_key, destination_key) as gazetteer keys, either may be None.
 
-    Substring matching handles multi-word names; the language's own place
-    lexicon handles native scripts.
+    Both endpoints must be NAMED at their slot, not merely mentioned somewhere
+    inside it; the language's own place lexicon handles native scripts.
     """
     lang = state.get("language") or "en"
     raw = state.get("query_text") or ""
 
     def find(fragment: str) -> str | None:
-        frag = fragment.lower()
-        hit = max((k for k in GAZETTEER if k in frag), key=len, default=None)
-        if hit:
-            return hit
-        if lang != "en":
-            from ...i18n.generate import native_place
-            return native_place(lang, fragment)
-        return None
+        return _place_at_start(fragment, lang)
 
     m = re.search(r"\bfrom\s+(.{2,40}?)\s+to\s+(.{2,40}?)\s*[?.!]?$", text)
     if m:
@@ -211,10 +243,17 @@ def _route_endpoints(state, text: str) -> tuple[str | None, str | None]:
 
 
 def _resolve_window(state: OrcaGraphState, window_hours: int) -> tuple[dict | None, str]:
-    explicit = state.get("resolved_time_window")
-    if explicit and explicit.get("start_time"):
-        return explicit, "window supplied by the caller"
+    """The analysis window: THIS turn's words first, then what was carried.
 
+    `resolved_time_window` is an OUTPUT channel, and a checkpointed thread
+    restores it, so reading it here made every turn after the first reuse the
+    first turn's window -- "what about tonight?" was answered for tomorrow
+    morning, and the resolution note said "window supplied by the caller"
+    while it did so (F-73). A confidently wrong time is exactly the failure
+    this system exists to avoid, so the query is parsed BEFORE any carried
+    value is consulted, mirroring how a place named in the query already beats
+    the one carried in the session.
+    """
     text = (state.get("query_text") or "").lower()
     lang = state.get("language") or "en"
     if lang != "en":
@@ -233,12 +272,22 @@ def _resolve_window(state: OrcaGraphState, window_hours: int) -> tuple[dict | No
         start = now_ist.replace(hour=18, minute=0, second=0, microsecond=0)
     elif "today" in text or "now" in text or "right now" in text:
         start = now_ist
-    if start is None:
-        return None, "no time expression recognised in the query"
-    start_utc = start.astimezone(timezone.utc)
-    return ({"start_time": start_utc.isoformat(),
-             "end_time": (start_utc + timedelta(hours=window_hours)).isoformat()},
-            "parsed from the query, IST to UTC")
+    if start is not None:
+        start_utc = start.astimezone(timezone.utc)
+        return ({"start_time": start_utc.isoformat(),
+                 "end_time": (start_utc + timedelta(hours=window_hours)).isoformat()},
+                "parsed from the query, IST to UTC")
+
+    # No time in this turn's words. A per-turn window from the caller comes
+    # next, then the one the conversation established -- "what about the
+    # fishing?" after "tomorrow morning" still means tomorrow morning.
+    explicit = state.get("client_time_window")
+    if explicit and explicit.get("start_time"):
+        return explicit, "window supplied by the caller"
+    carried = (state.get("session_context") or {}).get("resolved_time_window")
+    if carried and carried.get("start_time"):
+        return carried, "window carried from session context"
+    return None, "no time expression recognised in the query"
 
 
 def intent_context(state: OrcaGraphState, config=None) -> dict:

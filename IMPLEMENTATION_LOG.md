@@ -1920,3 +1920,84 @@ a query with no marine content is refused. The first is the line that must hold.
 The `to`-infinitive location bug (§22.6) — ten graph tests, and "is it safe to
 go out near Kochi" still fails to resolve a location. The unreproducible
 committed `webui/` bundle and the missing pinned requirements file (§22.5).
+
+---
+
+## 26. Session 16 — two wrong-premise bugs, and a green suite
+
+Both bugs here are wrong-PREMISE bugs, which is the worst kind this pipeline can
+carry: every number downstream is correctly retrieved, correctly aligned and
+correctly assessed — for a place or a time the user did not ask about. Nothing
+later in the chain can detect that, because nothing later knows what was asked.
+
+The suite now passes in full for the first time: **478 tests, 0 failures.**
+
+### 26.1 `to` is usually an infinitive
+
+| ID | Finding |
+|---|---|
+| **F-72** | **The route-destination matcher read every `to` as a preposition.** `_route_endpoints` searched the fragment after `to` with a SUBSTRING test, so "is it safe **to** go out near Kochi" found `kochi` inside a verb phrase and made it the destination. It was then excluded from origin matching and nothing resolved, so the commonest phrasing of the commonest question answered "Where are you asking about?". Every query with `to` before a place name was affected — "is it safe to sail near Chennai", "do I need to worry about waves near Mumbai". |
+
+`to` marks a verb far more often than it marks a destination, and the two
+readings put the place in opposite roles: in "route TO Chennai" it is where you
+are going, in "safe TO go out near Kochi" it is where you already are.
+
+**D-50 · A destination is NAMED at its slot, not mentioned inside it.**
+`_place_at_start` anchors the name to the beginning of the fragment, allowing
+only determiners and "port of"-style fillers. A substring search cannot make
+that distinction; anchoring can, and it costs nothing — "route from Kochi to the
+port of Chennai" still resolves both endpoints.
+
+This one defect accounted for **eight** of the ten long-standing test failures.
+
+### 26.2 The window never moved
+
+Fixing the first exposed the second, which was worse.
+
+| ID | Finding |
+|---|---|
+| **F-73** | **Every turn after the first reused the first turn's window.** `_resolve_window` read `state["resolved_time_window"]` — its own OUTPUT channel, which a checkpointed thread restores — before parsing the query. So "what about tonight?" was answered for tomorrow morning, and the resolution note said *"window supplied by the caller"* while doing it. A confidently wrong time, with a false account of where it came from. |
+
+The location path had never had this bug because a place named in the query
+already beat the carried one. The window is now ordered the same way: this
+turn's words, then a per-turn `client_time_window` from the caller, then the
+conversation's carried window, then nothing. The carry itself was never wrong —
+"how is the fishing?" after "tomorrow morning" should still mean tomorrow
+morning — only its priority was.
+
+```
+is it safe near Kochi tomorrow morning?   2026-09-04T00:30   (parsed)
+what about tonight?                       2026-09-03T12:30   (parsed, moved)
+how is the fishing?                       2026-09-03T12:30   (carried, and says so)
+```
+
+**D-51 · Caller input never shares a channel with graph output.**
+`client_location` already followed this rule; `client_time_window` now does too.
+A channel the graph writes and a checkpoint restores cannot also carry what the
+caller asked for this turn — the two are indistinguishable once stored, and the
+older value silently wins.
+
+### 26.3 What the tests were hiding
+
+Three of the ten failures were the tests' own doing, and each masked something:
+
+* **They seeded `resolved_*` rather than `client_*`.** That is a path no caller
+  can take — the API has used `client_location` since the UI work — so the tests
+  were exercising a contract that did not exist, and F-73 could never have
+  surfaced through them.
+* **They hardcoded `2026-09-03` as the analysis window** while asking about
+  "tomorrow morning". That passed only until the date arrived, then failed for
+  reasons unrelated to the code. The fixtures now derive the window the same way
+  the resolver does, so the fixture and the query say the same thing forever.
+* **One asserted the pre-fix contract** for `hello there` (§25) and was replaced
+  rather than patched.
+
+A test that seeds an output channel is not testing the product; it is testing a
+shape the product never sees.
+
+### 26.4 Still open
+
+The committed `webui/` bundle is still a build artefact nothing reproduces in
+CI, and there is still no pinned requirements file — the documented install list
+omits `fastapi` and `uvicorn` (§22.5). `out_of_scope` for non-English smalltalk
+remains a clarifying question rather than a refusal, by design (§25.2).

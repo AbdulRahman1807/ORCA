@@ -26,11 +26,19 @@ class TestPerTurnLanguage:
         assert s["language"] == "ta"
 
     def test_coordinates_are_passed_through_when_given(self):
+        """On `client_location`, the caller's own channel.
+
+        Not `resolved_location`: that is what the graph WRITES, and a
+        checkpointed thread restores it, so caller input placed there would be
+        indistinguishable from the previous turn's answer.
+        """
         s = _initial_state(ChatRequest(query="x", lat=9.9, lon=76.2))
-        assert s["resolved_location"]["lat"] == 9.9
+        assert s["client_location"]["lat"] == 9.9
 
     def test_no_location_key_when_not_given(self):
-        assert "resolved_location" not in _initial_state(ChatRequest(query="x"))
+        s = _initial_state(ChatRequest(query="x"))
+        assert "client_location" not in s
+        assert "resolved_location" not in s
 
 
 class TestProjection:

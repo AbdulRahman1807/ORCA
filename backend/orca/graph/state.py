@@ -64,6 +64,11 @@ class OrcaGraphState(TypedDict, total=False):
     query_text: str
     language: str
     client_location: dict | None
+    #: A window supplied by the CALLER for this turn. Separate from
+    #: `resolved_time_window`, which the graph writes and a checkpoint restores:
+    #: reading caller input off an output channel made every later turn reuse
+    #: the first turn's window (F-73).
+    client_time_window: dict | None
     session_context: dict
 
     # ---- resolved context (deterministic) -------------------------------

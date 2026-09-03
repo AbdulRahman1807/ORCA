@@ -4,6 +4,7 @@ Every test here is OFFLINE and uses no LLM: the deterministic path is a
 first-class supported mode, so the whole graph must run without either.
 """
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -21,7 +22,21 @@ from backend.orca.schemas.errors import ErrorCode
 from backend.orca.tools.registry import ToolRegistry
 
 UTC = timezone.utc
-WIN_START = datetime(2026, 9, 3, 0, 0, tzinfo=UTC)
+
+def _tomorrow_morning_utc() -> datetime:
+    """The window "tomorrow morning" actually resolves to, computed the same way.
+
+    These fixtures used to hardcode a date, which meant the suite passed only
+    until that date arrived and then failed for reasons that had nothing to do
+    with the code. Deriving it from `now` keeps the fixture and the query saying
+    the same thing forever.
+    """
+    base = datetime.now(ZoneInfo("Asia/Kolkata")) + timedelta(days=1)
+    return base.replace(hour=6, minute=0, second=0,
+                        microsecond=0).astimezone(UTC)
+
+
+WIN_START = _tomorrow_morning_utc()
 WIN = {"start_time": WIN_START.isoformat(),
        "end_time": (WIN_START + timedelta(hours=4)).isoformat()}
 LOC = {"lat": 9.93, "lon": 76.26, "label": "near Kochi"}
@@ -95,8 +110,11 @@ def run(registry, query="is it safe to go out near Kochi tomorrow morning?",
         **overrides):
     rt = OrcaRuntime(registry=registry)
     graph = build_graph()
-    state = {"query_text": query, "resolved_location": LOC,
-             "resolved_time_window": WIN, **overrides}
+    # `client_*` are the CALLER's channels. `resolved_*` are what the graph
+    # writes and a checkpoint restores, so seeding those would test a path no
+    # caller can take -- and would hide the staleness bug F-73 fixed.
+    state = {"query_text": query, "client_location": LOC,
+             "client_time_window": WIN, **overrides}
     return graph.invoke(state, config={"configurable": rt.configurable()})
 
 
@@ -209,7 +227,7 @@ class TestDomainFanOut:
 class TestClarificationPath:
     def test_unresolved_location_stops_before_retrieval(self):
         final = run(make_registry(), query="is it safe out there?",
-                    resolved_location=None, resolved_time_window=None)
+                    client_location=None, client_time_window=None)
         assert final.get("clarification_needed") == "location"
         assert "tool_exec" not in nodes_run(final)
 
