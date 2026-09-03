@@ -1822,3 +1822,101 @@ route did **not** take these conditions into account".
 The `to`-infinitive location bug (§22.6), `out_of_scope` as dead code (§24.1),
 the unreproducible committed `webui/` bundle and the missing pinned requirements
 file (§22.5).
+
+---
+
+## 25. Session 15 — a greeting is not a marine question
+
+§24.1 recorded that `hi` and `what is c programming` were answered with "Where
+are you asking about?". Nothing was fabricated — no verdict, no evidence, and
+supplying a location produced "which topic?" rather than an answer — but the
+exchange was **untrue about itself**: asking where asserts that the query WAS a
+marine question merely missing a detail.
+
+### 25.1 Why the branch was dead
+
+Three things had to be wrong at once, and they were.
+
+| ID | Finding |
+|---|---|
+| **F-69** | **`classify()` returned `smalltalk_or_out_of_scope` only for EMPTY text.** Everything unmatched fell to `unknown`, which routes to `plan`, which asks for the missing detail. The negative case was never reachable from any real query. |
+| **F-70** | **`out_of_scope` was wired straight to `finalize`, which composes nothing.** So even had the branch been reachable, it would have produced an answer with no headline and no recommendation at all. |
+
+Both had to be fixed together: a classification with nowhere to go, and a
+destination with nothing to say.
+
+### 25.2 The test is for ABSENCE of signal, and it fails safe
+
+The two errors here are not symmetric. Refusing a question a fisher actually
+asked is a failure of the product; asking a clarifying question about nonsense
+is merely clumsy. So the rule is deliberately lopsided: a query is out of scope
+only when it contains **no marine signal at all**, tested after every intent
+keyword has already failed.
+
+`_MARINE_SIGNAL` is therefore wide — marine nouns, vessels, gear, time
+expressions, bearings — and a bare position counts on its own. Two further
+escapes live in the context node, which is the only place that can see them:
+
+* **a query that names a PLACE.** "near Kochi" and "to Chennai" carry no marine
+  noun of their own and are the clarification loop's own replies;
+* **a thread with a question outstanding.** An answer is as short and bare as
+  the question made it.
+
+**D-49 · A carried location is not marine signal.**
+The place test reads the QUERY TEXT only, deliberately ignoring the session and
+any client GPS. The first implementation used the resolved location, which
+includes the carried one — so `hi` mid-conversation inherited the previous
+turn's location, was downgraded to `unknown`, picked up the carried intent and
+answered the fishing question again. A remembered location is what makes a
+follow-up answerable; it does not make a greeting a question.
+
+For a language whose own lexicon produced no hit, there is no basis to judge, so
+it stays `unknown` and asks. Malayalam smalltalk is still answered with a
+question — a documented limitation, and the safe direction.
+
+### 25.3 The bug the fix created
+
+| ID | Finding |
+|---|---|
+| **F-71** | **Out of scope was remembered as the conversation's topic.** `finalize` persists `intent` into `session_context`, and a follow-up inherits it. So a single `hi` mid-thread set the topic to `smalltalk_or_out_of_scope`, and **every later turn inherited it and was refused too** — "what about tomorrow?" after a greeting stopped working. Neither "out of scope" nor "unclassified" is something a follow-up can be ABOUT, so neither is persisted now. |
+
+This one is worth recording because it was invisible in single-shot testing and
+only appeared when a real conversation interleaved smalltalk with questions:
+
+```
+is it good for fishing near Kochi tomorrow morning?   answered      3 assessments
+hi                                                    OUT_OF_SCOPE  0
+what about tomorrow?                                  answered      3 assessments
+thanks                                                OUT_OF_SCOPE  0
+am I inside the EEZ?                                  answered      1
+what is c programming                                 OUT_OF_SCOPE  0
+is it safe there?                                     answered      1
+```
+
+### 25.4 What the answer says, and what the graph shows
+
+The node states what ORCA covers rather than asking where. The interface
+suppresses the intent/disposition line (`smalltalk_or_out_of_scope ·
+out_of_scope` is internal vocabulary) and the resolution notes — "no location in
+the query" would have reintroduced exactly the implication being removed — and
+opens the guidance rather than collapsing it, because here the guidance IS the
+answer.
+
+The agent graph shows the truth without being told to: `Out of scope` lit,
+`Ingest → Resolve intent → Finalise` on the spine, and Plan, Retrieve, Validate,
+Assess and Report all dim. No retrieval happened and the picture says so. The
+skeleton in `TraceGraph.tsx` was updated in the same change — it is
+hand-maintained against `build.py`, and adding a node there without adding it
+here would have made the drawing quietly wrong.
+
+An existing test asserted the OLD contract (`hello there` → ask for intent). It
+was replaced by two: an unclassifiable but genuinely marine query still asks, and
+a query with no marine content is refused. The first is the line that must hold.
+
+455 tests pass, 17 new.
+
+### 25.5 Still open
+
+The `to`-infinitive location bug (§22.6) — ten graph tests, and "is it safe to
+go out near Kochi" still fails to resolve a location. The unreproducible
+committed `webui/` bundle and the missing pinned requirements file (§22.5).

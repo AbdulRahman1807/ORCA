@@ -246,8 +246,14 @@ def finalize(state: OrcaGraphState, config=None) -> dict:
         session_context["resolved_location"] = state.get("resolved_location")
     if state.get("resolved_time_window"):
         session_context["resolved_time_window"] = state.get("resolved_time_window")
-    if state.get("intent"):
-        session_context["intent"] = state.get("intent")
+    # Only a real topic is remembered. `session_context["intent"]` is what a
+    # follow-up like "what about tomorrow?" inherits, and neither "out of
+    # scope" nor "unclassified" is something a follow-up can be ABOUT --
+    # persisting one made a single greeting poison every later turn in the
+    # thread, which then answered out of scope too.
+    intent = state.get("intent")
+    if intent and intent not in ("unknown", "smalltalk_or_out_of_scope"):
+        session_context["intent"] = intent
         
     return {
         "budget": {"wall_clock_ms": rt.budget.elapsed_ms()},

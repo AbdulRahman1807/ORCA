@@ -75,6 +75,10 @@ export function Answer({ data, onEvidenceClick }: Props) {
     : [rec?.headline || '', ''];
   const rest = restLines.join('\n').trim();
   const localised = (data.language || 'en') !== 'en';
+  /* Out of scope: the guidance IS the answer, so it is never collapsed, and
+   * the intent/disposition line is suppressed -- "smalltalk_or_out_of_scope ·
+   * out_of_scope" is internal vocabulary and tells the reader nothing. */
+  const outOfScope = data.disposition === 'OUT_OF_SCOPE';
   /* The route's own account of itself. The backend records what steered the
    * search and what it could not reach; none of it was rendered, so the only
    * place that said "sea state was not considered" was a property nobody saw. */
@@ -91,21 +95,25 @@ export function Answer({ data, onEvidenceClick }: Props) {
   return (
     <>
       <div className="headline" lang={data.language || 'en'}>{lead}</div>
-      <div className="sub">
-        {[data.intent, where, data.disposition?.toLowerCase()]
-          .filter(Boolean).join(' · ')}
-      </div>
+      {!outOfScope && (
+        <div className="sub">
+          {[data.intent, where, data.disposition?.toLowerCase()]
+            .filter(Boolean).join(' · ')}
+        </div>
+      )}
 
       {/* How the question was READ. A wrong premise is the one error a correct
-          pipeline cannot recover from, so the resolution is stated. */}
-      {(data.resolution_notes?.length ?? 0) > 0 && (
+          pipeline cannot recover from, so the resolution is stated -- except
+          out of scope, where "no location in the query" would reintroduce
+          exactly the implication this path exists to remove. */}
+      {!outOfScope && (data.resolution_notes?.length ?? 0) > 0 && (
         <div className="notes">
           {data.resolution_notes!.map((n, i) => <span key={i}>{n}</span>)}
         </div>
       )}
 
       {rest && (
-        <details className="fullanswer" open={localised}>
+        <details className="fullanswer" open={localised || outOfScope}>
           <summary>{localised ? 'Full answer' : 'Full answer in prose'}</summary>
           <p lang={data.language || 'en'}>{rest}</p>
         </details>

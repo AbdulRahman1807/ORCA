@@ -41,6 +41,8 @@ const SPINE = [
 
 /** Branches off the spine, each drawn at its source's layer. */
 const BRANCHES = [
+  { id: 'out_of_scope', label: 'Out of scope', from: 'intent_context',
+    note: 'intent_context → out_of_scope → finalise; no retrieval, no verdict' },
   { id: 'clarify', label: 'Ask for clarification', from: 'plan',
     note: 'plan → clarify → finalise' },
   { id: 'replan', label: 'Re-plan', from: 'validate', loops: 'tool_exec',

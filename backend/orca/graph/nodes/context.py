@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from ...agents.planner import PlannerAgent
+from ...agents.planner import UNKNOWN_INTENT, PlannerAgent
 from ..events import node_event
 from ..runtime import runtime_from
 from ..state import OrcaGraphState
@@ -140,6 +140,28 @@ def _resolve_origin(state: OrcaGraphState,
     return None, "no location in the query, the session or the gazetteer"
 
 
+def _query_names_a_place(state: OrcaGraphState) -> bool:
+    """Does the QUERY TEXT itself name a place or a position?
+
+    Deliberately ignores the session and any client GPS. A carried location is
+    what makes a follow-up answerable, but it does not make "hi" a marine
+    question -- and reading it as one is exactly how a greeting mid-conversation
+    came to inherit the previous turn and be answered again.
+    """
+    raw = state.get("query_text") or ""
+    text = raw.lower()
+    if _LATLON.search(text):
+        return True
+    if any(re.search(rf"\b{name}\b", text) for name in GAZETTEER):
+        return True
+    lang = state.get("language") or "en"
+    if lang != "en":
+        from ...i18n.generate import native_place
+        if native_place(lang, raw):
+            return True
+    return False
+
+
 def _route_endpoints(state, text: str) -> tuple[str | None, str | None]:
     """(origin_key, destination_key) as gazetteer keys, either may be None.
 
@@ -226,13 +248,34 @@ def intent_context(state: OrcaGraphState, config=None) -> dict:
 
     intent = planner.classify(state.get("query_text") or "",
                               language=state.get("language") or "en")
-    if intent in ("unknown", "smalltalk_or_out_of_scope"):
-        carried_intent = (state.get("session_context") or {}).get("intent")
-        if carried_intent:
-            intent = carried_intent
-
     location, loc_note = _resolve_location(state)
     window, win_note = _resolve_window(state, rt.window_hours)
+
+    # The planner judges VOCABULARY; it cannot see the gazetteer or the thread.
+    # Two escapes are applied here, both of which exist to stop a real answer
+    # being refused:
+    #
+    #   * a query that resolved a PLACE is about somewhere, and "near Kochi" or
+    #     "to Chennai" carry no marine noun of their own;
+    #   * a thread with a question outstanding is receiving its ANSWER, and an
+    #     answer is as short and bare as the question made it.
+    #
+    # Both are the clarification loop's own replies, so getting this wrong
+    # would break the conversation rather than merely a stray greeting.
+    if intent == "smalltalk_or_out_of_scope" and (
+            _query_names_a_place(state) or state.get("clarification_needed")):
+        intent = UNKNOWN_INTENT
+
+    if intent == UNKNOWN_INTENT:
+        # An unclassifiable query inside a live conversation is a follow-up:
+        # "what about tomorrow?" means whatever the last turn meant. Out of
+        # scope is NOT carried -- greeting someone mid-thread must not inherit
+        # the previous question and answer it again.
+        carried_intent = (state.get("session_context") or {}).get("intent")
+        # Defensive: an older checkpoint may still hold a non-topic here.
+        if carried_intent and carried_intent not in (
+                UNKNOWN_INTENT, "smalltalk_or_out_of_scope"):
+            intent = carried_intent
 
     return {
         "intent": intent,
@@ -242,6 +285,39 @@ def intent_context(state: OrcaGraphState, config=None) -> dict:
         "resolution_notes": [loc_note, win_note],
         "node_events": [node_event("intent_context", "success", started=started,
                                    summary=f"intent={intent}; {loc_note}; {win_note}")],
+    }
+
+
+def out_of_scope(state: OrcaGraphState, config=None) -> dict:
+    """Terminal. Says what ORCA does, rather than asking about a sea area.
+
+    The alternative -- the behaviour this replaces -- was to ask "Where are you
+    asking about?" for any unrecognised text. That is not a neutral fallback: it
+    ASSERTS that the question was a marine one merely missing a detail, so
+    "what is c programming" was told its location was the problem, and a user
+    who then supplied one would be asked for an intent instead. Nothing was ever
+    fabricated, but the exchange was untrue about itself.
+    """
+    started = time.perf_counter()
+    return {
+        "disposition": "OUT_OF_SCOPE",
+        "recommendation": {
+            "category": "OUT_OF_SCOPE",
+            "headline": "That is outside what I can answer. I cover sea "
+                        "conditions, fishing suitability, maritime boundaries "
+                        "and routes in Indian waters.",
+            # The narrative LEADS the answer in the interface and its first
+            # line becomes the headline there, so it opens with the same
+            # sentence rather than with the guidance that follows it.
+            "narrative": "That is outside what I can answer.\n"
+                         "I cover sea conditions, fishing suitability, "
+                         "maritime boundaries and routes in Indian waters. "
+                         "Ask about a place and a time \u2014 for example, "
+                         "\u201cis it safe near Kochi tomorrow morning?\u201d",
+            "is_official_advisory": False,
+        },
+        "node_events": [node_event("out_of_scope", "success", started=started,
+                                   summary="query is not about the marine domain")],
     }
 
 

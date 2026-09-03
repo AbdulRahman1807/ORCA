@@ -11,7 +11,8 @@ const NODE_LABEL: Record<string, string> = {
   conflict_resolve: 'Resolve conflicts',
   evidence_assemble: 'Assemble evidence', review_gate: 'Review gate',
   human_review: 'Human review', report: 'Compose answer', finalize: 'Finalise',
-  clarify: 'Ask for clarification', error_handler: 'Error'
+  clarify: 'Ask for clarification', out_of_scope: 'Out of scope',
+  error_handler: 'Error'
 };
 
 /* Two views over the same events, because they answer different questions.

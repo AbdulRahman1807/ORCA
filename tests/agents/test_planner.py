@@ -87,9 +87,26 @@ class TestClarificationRatherThanGuessing:
         assert plan.clarification_needed == "location"
         assert plan.steps == []
 
-    def test_unclassifiable_query_asks_rather_than_assuming_a_topic(self, registry):
-        plan = plan_for(registry, "hello there")
+    def test_an_unclassifiable_but_MARINE_query_asks_for_the_topic(self, registry):
+        """Marine words, no recognisable intent -> ask which topic.
+
+        This is the case the clarifying question exists for. It must survive the
+        out-of-scope test added alongside it, or every phrasing the keyword
+        table happens not to carry would be refused instead of asked about.
+        """
+        plan = plan_for(registry, "what about the water there?")
         assert plan.clarification_needed == "intent"
+        assert plan.steps == []
+
+    def test_a_query_with_no_marine_content_is_out_of_scope(self, registry):
+        """A greeting is not a marine question missing a detail.
+
+        Asking "which topic?" about "hello there" asserts that it WAS one, so
+        the exchange was untrue about itself even though it fabricated nothing.
+        """
+        plan = plan_for(registry, "hello there")
+        assert plan.intent == "smalltalk_or_out_of_scope"
+        assert plan.clarification_needed is None
         assert plan.steps == []
 
     def test_time_sensitive_intent_needs_a_window(self, registry):
