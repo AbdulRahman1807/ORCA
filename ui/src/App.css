@@ -361,3 +361,256 @@ button.go:disabled { opacity: .4; cursor: default; }
   .left-panel { max-height: 56vh; }
   .lbtn { padding: 6px 9px; font-size: 11px; }
 }
+
+/* ══════════════════════════════════════════════════ rebuild brief, tiers 1-3 */
+
+/* --------------------------------------- true threshold gauges (tier 2 #4) */
+/* The segments are absolutely positioned at their real edges, so the bar is
+ * `position:relative` with no flex. `.notional` marks the fallback where the
+ * API gave no edges and the bands are drawn equal-width. */
+.gbar { display: block; overflow: visible; }
+.gbar.notional { display: flex; }
+.gbar.notional .gseg { position: static; height: 100%; }
+.gbar > .gseg { position: absolute; top: 0; height: 100%; }
+.gbar::after {
+  content: ''; position: absolute; inset: 0;
+  border-radius: 3px; pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+}
+.gbar.notional { position: relative; }
+.gbar.notional::before {
+  content: '≈'; position: absolute; right: -11px; top: -4px;
+  font-size: 10px; color: var(--text-faint);
+}
+.gseg.in { box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); }
+.gtick {
+  position: absolute; top: -2px; width: 1px; height: 10px;
+  background: rgba(255,255,255,.30);
+}
+.gscale { position: relative; height: 12px; margin-top: 3px; }
+.gedge {
+  position: absolute; transform: translateX(-50%);
+  font-family: var(--mono); font-size: 9px; color: var(--text-faint);
+  white-space: nowrap;
+}
+.gval.bool { color: var(--text-primary); letter-spacing: .02em; }
+
+/* ---------------------------------- confidence as uncertainty (tier 3) */
+.verdict-card { border-color: color-mix(in srgb, var(--c) calc(var(--edge, .5) * 55%), var(--line)); }
+.verdict-card::before { opacity: calc(.35 + var(--edge, .5) * .65); }
+.vverdict { filter: blur(var(--vblur, 0)); }
+.vconf.c-low { color: var(--marginal); border-color: rgba(251,191,36,.3); }
+.vconf.c-medium { color: var(--text-secondary); }
+.vconf.c-high { color: var(--favourable); border-color: rgba(52,211,153,.28); }
+
+/* `not checked` is content, not an error state — collapsible, never hidden. */
+.gaps summary { cursor: pointer; list-style: none; }
+.gaps summary::-webkit-details-marker { display: none; }
+.gaps summary::before { content: '▸ '; color: var(--text-faint); }
+.gaps[open] summary::before { content: '▾ '; }
+.gaps ul { margin: 7px 0 0; padding-left: 14px; }
+.gaps li { margin-bottom: 4px; }
+.gap-why { display: block; color: var(--text-faint); font-size: 10.5px; }
+
+/* ------------------------------------- temporal alignment strip (tier 2 #5) */
+.tstrip { margin-top: 16px; }
+.tstrip-sub {
+  font-family: var(--mono); font-size: 10px; color: var(--text-faint);
+  text-transform: none; letter-spacing: 0; margin-left: 8px;
+}
+.tstrip-axis {
+  position: relative; height: 16px; margin: 2px 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+.twin {
+  position: absolute; top: 0; bottom: 0;
+  background: rgba(79,209,197,.13);
+  border-left: 1px solid rgba(79,209,197,.5);
+  border-right: 1px solid rgba(79,209,197,.5);
+}
+.twin span {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  top: 1px; font-size: 8.5px; letter-spacing: .06em;
+  color: var(--teal); white-space: nowrap; font-family: var(--mono);
+}
+.tnow { position: absolute; top: 0; bottom: -3px; width: 1px; background: rgba(255,255,255,.5); }
+.tnow::after {
+  content: 'now'; position: absolute; top: -1px; left: 3px;
+  font-size: 8.5px; color: var(--text-faint); font-family: var(--mono);
+}
+.trow { margin-bottom: 9px; }
+.trow.unused { opacity: .62; }
+.trow-head { display: flex; align-items: baseline; gap: 7px; font-size: 10.5px; }
+.trow-param {
+  font-family: var(--mono); color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px;
+}
+.trow-src { color: var(--text-faint); font-size: 9.5px; }
+.trow-age {
+  margin-left: auto; font-family: var(--mono);
+  font-size: 9.5px; color: var(--text-secondary);
+}
+.trow-track {
+  position: relative; height: 7px; margin: 3px 0 2px;
+  background: rgba(255,255,255,.04); border-radius: 4px;
+}
+.tbar {
+  position: absolute; top: 0; height: 100%; min-width: 3px; border-radius: 4px;
+  background: linear-gradient(90deg, var(--teal), var(--primary));
+}
+/* Refused values are hatched rather than merely faded: a dimmed bar reads as
+ * "less important", a hatched one reads as "excluded". */
+.tbar.out {
+  background: repeating-linear-gradient(
+    -45deg, rgba(148,163,184,.55) 0 3px, transparent 3px 6px);
+  box-shadow: inset 0 0 0 1px rgba(148,163,184,.4);
+}
+/* Pinned to the left edge because its true time is off the drawn axis. */
+.tbar.clipped { border-radius: 0 4px 4px 0; border-left: 2px solid var(--unsafe); }
+.trow-why { font-size: 10px; color: var(--text-faint); line-height: 1.4; }
+.trow-why code {
+  font-family: var(--mono); font-size: 9.5px; color: var(--text-secondary);
+}
+.tno { color: var(--marginal); }
+.tmore {
+  background: none; border: 1px solid var(--line); color: var(--text-secondary);
+  border-radius: 999px; padding: 4px 11px; font-size: 10.5px; cursor: pointer;
+  margin: 6px 0;
+}
+.tmore:hover { border-color: var(--line-2); color: var(--text-primary); }
+
+/* --------------------------------------- disagreement panel (tier 2 #10) */
+.disagree {
+  margin: 12px 0; padding: 11px 12px; border-radius: 11px;
+  border: 1px solid rgba(251,191,36,.3); background: rgba(251,191,36,.06);
+}
+.dis-head { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.dis-head i { font-style: normal; color: var(--marginal); }
+.disagree p { margin: 7px 0 9px; font-size: 11.5px; line-height: 1.55; color: var(--text-secondary); }
+.dis-pair { display: flex; gap: 9px; }
+.dis-cell {
+  flex: 1; min-width: 0; padding: 8px 9px; border-radius: 9px;
+  border: 1px solid var(--line); background: rgba(255,255,255,.02);
+  display: flex; flex-direction: column; gap: 3px;
+}
+.dis-dom {
+  font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--text-faint);
+}
+.dis-verdict { font-weight: 700; font-size: 12px; }
+.dis-why { font-size: 10px; color: var(--text-faint); line-height: 1.4; }
+
+/* ------------------------------------------------ freshness dots (tier 3) */
+.fdot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--f); margin-right: 7px; vertical-align: baseline;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--f) 18%, transparent);
+}
+/* Age is also carried by the ring, so the cue does not rest on hue alone. */
+.fdot.f-aging { box-shadow: 0 0 0 2px color-mix(in srgb, var(--f) 26%, transparent); }
+.fdot.f-stale { background: transparent; box-shadow: inset 0 0 0 2px var(--f); }
+.fdot.f-ancient {
+  background: transparent; box-shadow: inset 0 0 0 2px var(--f), 0 0 6px var(--f);
+}
+.fdot.f-forecast { background: transparent; box-shadow: inset 0 0 0 1.5px var(--f); }
+
+/* ------------------------------------- provenance as a chain (tier 2 #6) */
+.pchain-id {
+  color: var(--text-faint); font-size: 10px; margin-bottom: 12px;
+  word-break: break-all;
+}
+.plevel { display: flex; gap: 11px; padding-bottom: 14px; position: relative; }
+.plevel:not(:last-child) .plevel-rail::after {
+  content: ''; position: absolute; left: 50%; top: 22px; bottom: -14px;
+  width: 1px; background: linear-gradient(180deg, var(--line-2), var(--line));
+}
+.plevel-rail { position: relative; width: 26px; flex: 0 0 26px; }
+.plevel-n {
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 22px; border-radius: 6px;
+  border: 1px solid var(--line-2); background: rgba(79,209,197,.08);
+  font-family: var(--mono); font-size: 9.5px; color: var(--teal);
+}
+.plevel-body { flex: 1; min-width: 0; }
+.plevel-head {
+  font-size: 12px; font-weight: 600; margin-bottom: 6px;
+  display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap;
+}
+.plevel-tag {
+  font-family: var(--mono); font-size: 9.5px; color: var(--text-faint);
+  border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px;
+}
+
+/* ------------------------------- source health constellation (tier 2 #7) */
+.constellation-top {
+  font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;
+}
+.constellation-top b { color: var(--text-primary); }
+.constel { margin-bottom: 13px; }
+.constel-head {
+  display: flex; align-items: center; gap: 8px; font-size: 10px;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--text-faint);
+  margin-bottom: 7px;
+}
+.constel-count { margin-left: auto; font-family: var(--mono); letter-spacing: 0; }
+.constel-nodes { display: flex; flex-wrap: wrap; gap: 6px; }
+.cnode {
+  display: flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 5px 9px; border-radius: 999px; font-size: 10.5px;
+  border: 1px solid var(--line); background: rgba(255,255,255,.02);
+}
+.cnode.on { border-color: rgba(52,211,153,.3); }
+.cnode.on .cnode-dot { background: var(--favourable); box-shadow: 0 0 8px rgba(52,211,153,.6); }
+/* An unbound capability stays VISIBLE. Dropping it would make the map of what
+ * ORCA can do look complete. */
+.cnode.off { opacity: .72; border-style: dashed; }
+.cnode.off .cnode-dot { background: var(--unknown); }
+.cnode-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.cnode-name { font-family: var(--mono); color: var(--text-primary); }
+.cnode.off .cnode-name { color: var(--text-secondary); }
+.cnode-why {
+  font-size: 9.5px; color: var(--text-faint); border-left: 1px solid var(--line);
+  padding-left: 6px; max-width: 140px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* -------------------------------------------------- answer: gaps and notes */
+.notes {
+  display: flex; flex-direction: column; gap: 3px; margin: -8px 0 13px;
+  font-size: 10.5px; color: var(--text-faint); font-family: var(--mono);
+}
+.notes span::before { content: '· '; }
+.gapline {
+  display: flex; gap: 9px; align-items: baseline; font-size: 11px;
+  padding: 5px 0; border-bottom: 1px dashed var(--line);
+  color: var(--text-secondary);
+}
+.gapline b { color: var(--text-primary); font-weight: 600; flex: 0 0 auto; }
+.gapline span { color: var(--text-faint); font-size: 10.5px; line-height: 1.4; }
+.notchecked { margin-top: 12px; font-size: 11px; color: var(--text-secondary); }
+.notchecked summary { cursor: pointer; list-style: none; }
+.notchecked summary::-webkit-details-marker { display: none; }
+.notchecked summary::before { content: '▸ '; color: var(--text-faint); }
+.notchecked[open] summary::before { content: '▾ '; }
+
+/* The provenance id is a real button: it was a <span> with an onClick, which
+ * no keyboard or screen reader could reach. */
+.ev .p {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: var(--mono); font-size: inherit; text-align: left;
+}
+.ev .p:focus-visible, .tmore:focus-visible, .cnode:focus-visible {
+  outline: 2px solid var(--teal); outline-offset: 2px;
+}
+
+/* ------------------------------------------ corridor + median-ring legend */
+.corridor-legend { bottom: 132px; }
+.median-note { display: flex; align-items: baseline; gap: 7px; margin-bottom: 6px; }
+.median-key {
+  flex: 0 0 auto; width: 16px; height: 0; margin-top: 6px;
+  border-top: 1.5px dashed #f8fafc;
+}
+.trow-n {
+  font-family: var(--mono); font-size: 9px; color: var(--text-faint);
+  border: 1px solid var(--line); border-radius: 4px; padding: 0 4px;
+}

@@ -13,6 +13,7 @@ import { FIELD_SPECS, type FieldSpec } from './lib/fields';
 import type {
   ORCAField, ORCAMapLayer, ORCAResponse, ORCASource, ORCATraceEvent
 } from './types/api';
+import type { CorridorInfo } from './components/Legend';
 // Imported last: maplibre-gl.css ships `.maplibregl-map{position:relative}` and
 // would otherwise win the cascade over our own single-class rules.
 import './App.css';
@@ -33,6 +34,7 @@ function App() {
   const [field, setField] = useState<ORCAField | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [fieldLoading, setFieldLoading] = useState<string | null>(null);
+  const [corridor, setCorridor] = useState<CorridorInfo | null>(null);
 
   const routeLayer: ORCAMapLayer | null =
     result?.map_layers?.find((l) => l.id === 'optimized_route') ?? null;
@@ -98,6 +100,8 @@ function App() {
         location={location}
         field={field}
         fieldSpec={fieldSpec}
+        alerts={result?.alerts}
+        onCorridor={setCorridor}
       />
       <div className="caustics" />
       <div className="vignette" />
@@ -147,7 +151,7 @@ function App() {
         loading={fieldLoading}
         onToggle={toggleField}
       />
-      <Legend spec={fieldSpec} field={field} error={fieldError} />
+      <Legend spec={fieldSpec} field={field} error={fieldError} corridor={corridor} />
     </QueryClientProvider>
   );
 }

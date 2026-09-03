@@ -60,6 +60,15 @@ class Driver(BaseModel):
     threshold_id: str | None = None
     contribution: Literal["limiting", "supporting", "context"] = "supporting"
     evidence_id: str | None = None
+    #: The band EDGES this factor was judged against, as
+    #: ``{band: [low, high]}`` with ``None`` for an open end. Carried so a
+    #: renderer can place a value at its true position on a real axis instead
+    #: of inventing one. A gauge whose axis is made up is a made-up fact, so
+    #: the interface draws equal-width bands until these arrive.
+    bands: dict[str, list[float | None]] | None = None
+    #: True when a HIGHER value is worse, which tells a renderer which end of
+    #: the axis is the bad one without it having to guess from the band order.
+    higher_is_worse: bool | None = None
 
 
 class NotEvaluated(BaseModel):

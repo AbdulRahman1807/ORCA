@@ -220,6 +220,150 @@ def _initial_state(req: ChatRequest) -> dict:
     return state
 
 
+def _iso(v: Any) -> str | None:
+    if v is None:
+        return None
+    if isinstance(v, datetime):
+        return v.isoformat()
+    return str(v)
+
+
+def _as_dict(x: Any) -> dict:
+    if isinstance(x, dict):
+        return x
+    if hasattr(x, "model_dump"):
+        return x.model_dump(mode="json")
+    return {k: v for k, v in vars(x).items() if not k.startswith("_")}
+
+
+def _temporal_alignment(final: dict) -> dict:
+    """Every retrieved value's validity window against the analysis window.
+
+    This is the answer to "why was 2011 SST rejected and two-day-old
+    chlorophyll accepted?", which is otherwise the least visible and most
+    load-bearing judgement ORCA makes. The strip is built from PROVENANCE, not
+    from evidence, because provenance records everything that was RETRIEVED --
+    including the values the aligner then refused. A strip drawn from evidence
+    alone would show only the survivors and so could never show the rejection.
+
+    Nothing here is computed for the client: every field is a value the
+    pipeline already produced, joined on provenance_id and stamped with the age
+    at the time of the request.
+    """
+    win = final.get("resolved_time_window") or {}
+    now = datetime.now(timezone.utc)
+
+    # provenance_id -> the record, so a derivation's inputs can be followed.
+    by_id: dict[str, dict] = {}
+    for env in final.get("tool_results") or []:
+        for rec in getattr(env, "provenance", []) or []:
+            r = _as_dict(rec)
+            if r.get("provenance_id"):
+                by_id[r["provenance_id"]] = r
+
+    # provenance_id -> the evidence that used it, when any did
+    used_by: dict[str, dict] = {}
+    for ev in final.get("evidence") or []:
+        e = _as_dict(ev)
+        pid = e.get("provenance_id")
+        if pid:
+            used_by[pid] = e
+
+    # A DERIVED value's inputs were used too, just not directly: the raw
+    # chlorophyll behind chlorophyll_ratio_to_local_median is the reason the
+    # ratio exists. Marking it unused would put the strip's most important
+    # distinction -- retrieved-and-refused versus retrieved-and-used -- on the
+    # wrong row. Walk the derivation lineage and attribute the inputs to the
+    # same evidence, guarding against a cycle in the recorded chain.
+    pending = list(used_by.items())
+    while pending:
+        pid, ev = pending.pop()
+        deriv = (by_id.get(pid) or {}).get("derivation") or {}
+        for src in deriv.get("inputs") or []:
+            if src in used_by:
+                continue
+            used_by[src] = ev
+            pending.append((src, ev))
+
+    # Why a factor was NOT evaluated, keyed by the factor/parameter name, so a
+    # rejected row can carry its own reason rather than just going missing.
+    reasons: dict[str, dict] = {}
+    for a in final.get("assessments") or []:
+        for n in _as_dict(a).get("not_evaluated") or []:
+            n = _as_dict(n)
+            if n.get("factor"):
+                reasons.setdefault(n["factor"], n)
+
+    def _reason_for(param: str | None) -> dict:
+        """A factor name is not always the parameter name it came from.
+
+        `sst_anomaly_abs` is judged from the `sst_anomaly` parameter, so an
+        exact join drops precisely the rows whose exclusion the strip exists to
+        explain. Fall back to the longest factor that extends the parameter.
+        """
+        if not param:
+            return {}
+        if param in reasons:
+            return reasons[param]
+        cand = [f for f in reasons if f.startswith(param)]
+        return reasons[max(cand, key=len)] if cand else {}
+
+    entries, seen = [], set()
+    for env in final.get("tool_results") or []:
+        tool = getattr(env, "tool", None)
+        for rec in getattr(env, "provenance", []) or []:
+            r = _as_dict(rec)
+            pid = r.get("provenance_id")
+            if not pid or pid in seen:
+                continue
+            seen.add(pid)
+            derived_via = ((r.get("derivation") or {}).get("method")
+                           if r.get("derivation") else None)
+            t = r.get("temporal") or {}
+            valid = t.get("valid_time")
+            age_s = None
+            if valid:
+                try:
+                    age_s = (now - datetime.fromisoformat(str(valid))).total_seconds()
+                except ValueError:
+                    age_s = None
+            ev = used_by.get(pid)
+            param = r.get("parameter")
+            entries.append({
+                "provenance_id": pid,
+                "tool": tool,
+                "parameter": param,
+                "value_kind": r.get("value_kind"),
+                "source": r.get("source"),
+                "source_id": r.get("source_id"),
+                "dataset": r.get("dataset"),
+                "valid_time": _iso(valid),
+                "valid_from": _iso(t.get("valid_from")),
+                "valid_to": _iso(t.get("valid_to")),
+                "reference_time": _iso(t.get("reference_time")),
+                "lead_time_h": t.get("lead_time_h"),
+                "representativeness": t.get("representativeness"),
+                "retrieved_at": _iso(t.get("retrieved_at") or r.get("retrieved_at")),
+                "age_s": age_s,
+                # `used` is the whole point of the strip: a row that was
+                # retrieved and then NOT used is the interesting one.
+                "used": ev is not None,
+                "derived_via": derived_via,
+                "evidence_id": (ev or {}).get("evidence_id"),
+                "domain": (ev or {}).get("domain"),
+                "excluded_reason": _reason_for(param).get("reason"),
+                "excluded_detail": _reason_for(param).get("detail"),
+            })
+
+    entries.sort(key=lambda e: (e["valid_time"] or "", e["parameter"] or ""))
+    return {
+        "window": {"start_time": win.get("start_time"),
+                   "end_time": win.get("end_time")},
+        "generated_at": now.isoformat(),
+        "entries": entries,
+    }
+
+
 def _project(final: dict, thread_id: str) -> dict:
     """The client projection: everything the UI renders, nothing internal."""
     rec = final.get("recommendation")
@@ -248,6 +392,7 @@ def _project(final: dict, thread_id: str) -> dict:
         "map_layers": _dump(final.get("map_layers") or final.get("layers") or []),
         "claims": _dump(final.get("claims") or []),
         "not_evaluated": _dump(final.get("not_evaluated") or []),
+        "temporal_alignment": _temporal_alignment(final),
         "disposition": final.get("disposition"),
         "recommendation": _dump(rec),
         "trace": [_dump(e) for e in (final.get("node_events") or [])],

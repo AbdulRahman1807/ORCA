@@ -8,6 +8,9 @@ const API_TARGET = process.env.VITE_API_TARGET || 'http://localhost:8000';
 
 export default defineConfig({
   plugins: [react()],
+  // maplibre constructs its worker with {type:'module'}; emit a real ES
+  // module worker rather than the default IIFE so that stays honest.
+  worker: { format: 'es' },
   base: '/ui/',
   // Build straight into the backend package so `uvicorn orca.api.main:app`
   // serves the real UI with no copy step to forget.
