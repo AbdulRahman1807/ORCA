@@ -58,6 +58,23 @@ export function Answer({ data, onEvidenceClick }: Props) {
   const where = L
     ? `${L.label || ''} ${L.lat?.toFixed(2)}N ${L.lon?.toFixed(2)}E`.trim()
     : '';
+
+  /* `headline` is a short English summary; `narrative` is the COMPOSED answer,
+   * and the only part of the payload that is written in the user's language.
+   * Rendering the headline alone meant a Malayalam question was answered in
+   * English on screen while its Malayalam answer sat unused in the response --
+   * the verdict cards' domain and factor names are English too, so the
+   * narrative is the whole of what a non-English reader can actually read.
+   *
+   * So the answer leads with the narrative's own first line, and the rest is
+   * kept: collapsed in English, where the cards below say the same thing, and
+   * open otherwise, where they do not. */
+  const narrative = (rec?.narrative || '').trim();
+  const [lead, ...restLines] = narrative
+    ? narrative.split('\n')
+    : [rec?.headline || '', ''];
+  const rest = restLines.join('\n').trim();
+  const localised = (data.language || 'en') !== 'en';
   const evidence = data.evidence || [];
   const shownEvidence = allEvidence ? evidence : evidence.slice(0, EVIDENCE_PAGE);
   const unavailable = data.plan?.unavailable ?? [];
@@ -65,7 +82,7 @@ export function Answer({ data, onEvidenceClick }: Props) {
 
   return (
     <>
-      <div className="headline">{rec?.headline}</div>
+      <div className="headline" lang={data.language || 'en'}>{lead}</div>
       <div className="sub">
         {[data.intent, where, data.disposition?.toLowerCase()]
           .filter(Boolean).join(' · ')}
@@ -77,6 +94,13 @@ export function Answer({ data, onEvidenceClick }: Props) {
         <div className="notes">
           {data.resolution_notes!.map((n, i) => <span key={i}>{n}</span>)}
         </div>
+      )}
+
+      {rest && (
+        <details className="fullanswer" open={localised}>
+          <summary>{localised ? 'Full answer' : 'Full answer in prose'}</summary>
+          <p lang={data.language || 'en'}>{rest}</p>
+        </details>
       )}
 
       {(data.alerts || []).map((a, i) => (

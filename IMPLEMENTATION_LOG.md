@@ -1635,3 +1635,93 @@ own verification checklist.
 
 The fix belongs in intent parsing, not in the interface, and changing route
 detection has real blast radius, so it was left alone and is recorded here.
+
+---
+
+## 23. Session 13 — the graph as a graph, and a checklist that found two bugs
+
+Two things: the last open item on the tier list, and then actually running
+`23_FRONTEND_REBUILD_BRIEF.md` §8 end to end. The checklist was the more
+valuable half — it found two defects that every other check had passed.
+
+### 23.1 The agent trace as the graph it is
+
+The timeline shows every node in completion order, which is the right shape for
+reading WHAT happened. What it cannot show is that the run has a **shape**: a
+plan that fans out across seven tools at once, a validation gate that can send
+the run backwards, a per-domain assessment fan-out that is deliberately never
+merged. That shape is the thing a dashboard cannot produce, and it was being
+rendered as a flat list.
+
+`TraceGraph.tsx` draws the topology from `graph/build.py` as a fixed skeleton
+and lights the run over it. Two consequences are the whole point:
+
+* **A node that did not run stays visible, dim.** The path not taken is
+  information. `clarify` dark means ORCA did not need to ask; `replan` dark
+  means the first plan was sufficient; `human_review` dark means the answer was
+  auto-released. Hiding them would make every run look like the only path the
+  graph has.
+* **The fan-outs are drawn as fan-outs.** Seven parallel tools read as seven
+  parallel tools rather than seven consecutive lines — which is what F-56 was
+  about in the first place, and what a vertical list structurally cannot show.
+
+The skeleton is hand-maintained against `build.py`. That is a real maintenance
+cost and worth stating: a *wrong* picture of the graph would be worse than no
+picture, so the edges drawn there are exactly the edges compiled here. The
+timeline is kept alongside it, because the graph has no room for per-node codes
+and timings; selecting a node reveals them.
+
+**D-47 · Both views, and the graph leads.** They answer different questions —
+"what is the shape of this run" and "what happened, in order" — and neither
+subsumes the other.
+
+### 23.2 Two bugs the checklist found
+
+Every automated check passed and both of these were still broken, because both
+are about a *relationship* between parts that are individually correct.
+
+| ID | Finding |
+|---|---|
+| **F-66** | **The clarifying question was visible, but the cursor was not in the box.** F-57 fixed this once; the React port reintroduced it in a subtler form. The textarea is `disabled` while streaming, and the `result` event arrives *while `isStreaming` is still true* — so `focus()` was called on a disabled element, did nothing, and nothing re-focused it when the stream ended a moment later. Focus now waits for the stream to end. The bug is invisible to any test that asserts on the DOM rather than on `document.activeElement`. |
+| **F-67** | **A Malayalam question was answered in English on screen, while its Malayalam answer sat unused in the response.** `recommendation.headline` is a short English summary; `recommendation.narrative` is the COMPOSED answer and the only field written in the user's language. The interface rendered the headline and discarded the narrative. Language detection, the `ML` badge, the lexicons and the backend composition were all working perfectly — the last step threw the result away. |
+
+F-67 is worth dwelling on because of what it implies. The verdict cards' domain
+names, factor names and band labels are all English. The narrative is therefore
+not a nicety for a non-English reader; it is the *entire* readable answer. So it
+now leads — the headline is its first line — and the rest is kept: collapsed in
+English, where the cards below say the same thing, and open otherwise, where
+they do not.
+
+### 23.3 §8, run properly
+
+All ten items pass. Three are worth recording because of *how* they were
+verified rather than that they passed:
+
+**Three turns, no accumulation.** Turn 1 near Kochi produced three cards
+(SAFETY, FISHING_SUITABILITY, REGULATORY), 3 alerts, 9 evidence. Turn 2 "is it
+safe there tomorrow morning?" produced **SAFETY only**. Turn 3 "am I inside the
+EEZ?" produced **REGULATORY only**. Location carried through all three and was
+never re-asked. D-44 holds under a real conversation.
+
+A second run of the same test found something better than a pass: asking "is it
+safe?" after a boundary check returned `waiting on time_window` — the session
+had carried the location but the boundary question established no window, and a
+safety question needs one. The clarification turn showed **zero** verdict cards
+rather than the previous turn's stale one, which is the accumulation property
+demonstrated at the moment it would be most tempting to get wrong.
+
+**Tile hosts blocked.** Verified for real, by pointing all three basemap hosts
+at an unroutable address and rebuilding, rather than by reasoning about it. On a
+completely blank map the answer, gauges, alerts, evidence, temporal strip, the
+agent graph, the EEZ boundary lines and the position marker all rendered. The
+GeoJSON layers are worth calling out: they do not depend on tiles, so "no
+basemap" is not "no map" — the boundaries are still there.
+
+**Coverage near Kochi.** 55 %, 5 207 cells masked and drawn as gaps.
+
+### 23.4 Still open
+
+Unchanged from §22.6 and §22.5: the `to`-infinitive location bug still fails ten
+graph tests and still breaks "is it safe to go out near Kochi"; the committed
+`webui/` bundle is still a build artefact nothing reproduces in CI; and there is
+still no pinned requirements file.

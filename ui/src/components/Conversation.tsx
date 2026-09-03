@@ -39,9 +39,20 @@ export function Conversation({ onResult, onTrace, onEvidenceClick }: Props) {
 
   useEffect(() => {
     if (state.result) onResult(state.result);
-    // When ORCA asks a question, put the cursor where the answer goes.
-    if (state.result?.clarification_needed) inputRef.current?.focus();
   }, [state.result, onResult]);
+
+  // When ORCA asks a question, put the cursor where the answer goes (F-57).
+  //
+  // This must wait for the stream to END. The `result` event arrives while
+  // `isStreaming` is still true, and the textarea is disabled for exactly that
+  // long -- so focusing on the result alone called focus() on a disabled
+  // element, which does nothing, and nothing focused it afterwards. The
+  // question was visible and the cursor was somewhere else.
+  useEffect(() => {
+    if (!state.isStreaming && state.result?.clarification_needed) {
+      inputRef.current?.focus();
+    }
+  }, [state.isStreaming, state.result]);
 
   const placeholder = state.result?.clarification_needed
     ? askHintFor(state.result.clarification_needed)

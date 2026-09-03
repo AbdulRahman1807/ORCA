@@ -136,7 +136,12 @@ export interface ORCAResponse {
   temporal_alignment?: ORCATemporalAlignment;
   resolution_notes?: string[];
   disposition?: string;
-  recommendation?: { category: string; headline: string; is_official_advisory: boolean };
+  recommendation?: {
+    category: string; headline: string; is_official_advisory: boolean;
+    // The composed answer, and the only field written in the user's
+    // language. `headline` is always English.
+    narrative?: string;
+  };
   trace?: ORCATraceEvent[];
 }
 
