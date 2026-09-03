@@ -156,8 +156,17 @@ async def _no_cache_ui(request, call_next):
     return response
 
 
+# Two interfaces ship. `webui/` is the React build (`npm run build` in ui/) and
+# is what /ui serves when present; `static/` is the dependency-free vanilla UI,
+# always available at /classic/ so a broken frontend build can never take the
+# demo down with it.
 _STATIC = os.path.join(os.path.dirname(__file__), "static")
+_WEBUI = os.path.join(os.path.dirname(__file__), "webui")
 if os.path.isdir(_STATIC):
+    app.mount("/classic", StaticFiles(directory=_STATIC, html=True), name="classic")
+if os.path.isdir(_WEBUI):
+    app.mount("/ui", StaticFiles(directory=_WEBUI, html=True), name="ui")
+elif os.path.isdir(_STATIC):
     app.mount("/ui", StaticFiles(directory=_STATIC, html=True), name="ui")
 
 
@@ -206,8 +215,8 @@ def _initial_state(req: ChatRequest) -> dict:
         "language": req.language or detect_language(req.query),
     }
     if req.lat is not None and req.lon is not None:
-        state["resolved_location"] = {"lat": req.lat, "lon": req.lon,
-                                      "label": None}
+        state["client_location"] = {"lat": req.lat, "lon": req.lon,
+                                    "label": None}
     return state
 
 

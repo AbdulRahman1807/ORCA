@@ -63,6 +63,7 @@ class OrcaGraphState(TypedDict, total=False):
     # ---- input ----------------------------------------------------------
     query_text: str
     language: str
+    client_location: dict | None
     session_context: dict
 
     # ---- resolved context (deterministic) -------------------------------

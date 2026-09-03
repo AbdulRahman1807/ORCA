@@ -82,19 +82,26 @@ def _resolve_location(state: OrcaGraphState) -> tuple[dict | None, str]:
     # treating it as the origin would route from the destination to itself.
     _, dest_key = _route_endpoints(state, (state.get("query_text") or "").lower())
     origin, note = _resolve_origin(state, exclude=dest_key)
+    if dest_key and origin and origin.get("dest_lat") is not None:
+        origin = {k: v for k, v in origin.items() if not k.startswith("dest_")}
+        note = f"carried origin, new destination"
+        
     if origin is None or origin.get("dest_lat") is not None or not dest_key:
         return origin, note
     dlat, dlon = GAZETTEER[dest_key]
     if (dlat, dlon) != (origin.get("lat"), origin.get("lon")):
+        old_label = origin.get('label') or 'here'
+        if " to " in old_label:
+            old_label = old_label.split(" to ")[0]
         origin = {**origin, "dest_lat": dlat, "dest_lon": dlon,
-                  "label": f"{origin.get('label') or 'here'} to {dest_key.title()}"}
+                  "label": f"{old_label} to {dest_key.title()}"}
         note = f"{note}; destination {dest_key!r}"
     return origin, note
 
 
 def _resolve_origin(state: OrcaGraphState,
                     exclude: str | None = None) -> tuple[dict | None, str]:
-    explicit = state.get("resolved_location")
+    explicit = state.get("client_location")
     if explicit and explicit.get("lat") is not None:
         return explicit, "location supplied by the caller"
 
@@ -163,6 +170,11 @@ def _route_endpoints(state, text: str) -> tuple[str | None, str | None]:
         d = find(m.group(1))
         if d:
             return None, d
+
+    if state.get("clarification_needed") == "destination":
+        for name in GAZETTEER:
+            if re.search(rf"\b{name}\b", text):
+                return None, name
 
     # Native scripts rarely use "from/to"; take two distinct places in order.
     if lang != "en":
