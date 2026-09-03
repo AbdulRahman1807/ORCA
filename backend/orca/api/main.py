@@ -104,6 +104,22 @@ def _field_adapters():
     return cmems, gfs, snapshot
 
 
+def _route_field_provider(cmems, gfs):
+    """Bind the gridded-field fetch the router steers by.
+
+    Held at the composition root for the same reason `navigable` is: the graph
+    node must not reach for an adapter, and a missing provider has to degrade to
+    a DECLARED distance-only route rather than a silent one.
+    """
+    from ..tools.fields import route_fields
+
+    def provider(lat: float, lon: float, valid_time: datetime,
+                 radius_km: float):
+        return route_fields(lat, lon, valid_time, radius_km=radius_km,
+                            cmems=cmems, gfs=gfs)
+    return provider
+
+
 def _sea_mask():
     """Route navigability from the versioned boundary snapshot.
 
@@ -127,6 +143,7 @@ async def lifespan(app: FastAPI):
     _state["registry"] = bind_live_tools()      # built once, held for the process
     _state["navigable"] = _sea_mask()
     _state["cmems"], _state["gfs"], _state["snapshot"] = _field_adapters()
+    _state["route_fields"] = _route_field_provider(_state["cmems"], _state["gfs"])
     _state["llm"] = resolve_provider()
     log.info("ORCA ready · tools=%d · llm=%s",
              len(_state["registry"].available_names()), _state["llm"].name)
@@ -178,7 +195,8 @@ def root():
 
 def _runtime() -> OrcaRuntime:
     return OrcaRuntime(registry=_state["registry"], llm=_state["llm"],
-                       navigable=_state.get("navigable"))
+                       navigable=_state.get("navigable"),
+                       route_fields=_state.get("route_fields"))
 
 
 def _dump(x: Any) -> Any:

@@ -14,6 +14,7 @@ import type {
   ORCAField, ORCAMapLayer, ORCAResponse, ORCASource, ORCATraceEvent
 } from './types/api';
 import type { CorridorInfo } from './components/Legend';
+import type { ORCARouteProps } from './types/api';
 // Imported last: maplibre-gl.css ships `.maplibregl-map{position:relative}` and
 // would otherwise win the cascade over our own single-class rules.
 import './App.css';
@@ -38,6 +39,10 @@ function App() {
 
   const routeLayer: ORCAMapLayer | null =
     result?.map_layers?.find((l) => l.id === 'optimized_route') ?? null;
+  // What the router was steered by travels with the layer. The corridor tint
+  // must not imply a steering that did not happen.
+  const routeProps: ORCARouteProps | null =
+    (routeLayer?.data?.properties as ORCARouteProps) ?? null;
   const location = result?.resolved_location ?? null;
   const centre = { lat: location?.lat ?? 9.93, lon: location?.lon ?? 76.26 };
 
@@ -151,7 +156,8 @@ function App() {
         loading={fieldLoading}
         onToggle={toggleField}
       />
-      <Legend spec={fieldSpec} field={field} error={fieldError} corridor={corridor} />
+      <Legend spec={fieldSpec} field={field} error={fieldError}
+              corridor={corridor} route={routeProps} />
     </QueryClientProvider>
   );
 }

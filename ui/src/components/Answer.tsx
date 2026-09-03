@@ -3,7 +3,7 @@ import { VerdictCard } from './VerdictCard';
 import { TemporalStrip } from './TemporalStrip';
 import { Disagreement } from './Disagreement';
 import { FreshnessDot } from './Freshness';
-import type { ORCAResponse } from '../types/api';
+import type { ORCAResponse, ORCARouteProps } from '../types/api';
 
 const titleCase = (s: string) =>
   s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -75,6 +75,14 @@ export function Answer({ data, onEvidenceClick }: Props) {
     : [rec?.headline || '', ''];
   const rest = restLines.join('\n').trim();
   const localised = (data.language || 'en') !== 'en';
+  /* The route's own account of itself. The backend records what steered the
+   * search and what it could not reach; none of it was rendered, so the only
+   * place that said "sea state was not considered" was a property nobody saw. */
+  const routeProps: ORCARouteProps | null =
+    (data.map_layers?.find((l) => l.id === 'optimized_route')
+      ?.data?.properties as ORCARouteProps) ?? null;
+  const steeredBy = routeProps?.steered_by ?? [];
+
   const evidence = data.evidence || [];
   const shownEvidence = allEvidence ? evidence : evidence.slice(0, EVIDENCE_PAGE);
   const unavailable = data.plan?.unavailable ?? [];
@@ -120,6 +128,37 @@ export function Answer({ data, onEvidenceClick }: Props) {
           </div>
         </div>
       ))}
+
+      {routeProps && (
+        <div className={`routecard${steeredBy.length ? '' : ' plain'}`}>
+          <div className="rc-top">
+            <b>Route</b>
+            <span className="rc-len">
+              {routeProps.length_km} km · {routeProps.waypoints} waypoints
+            </span>
+          </div>
+          <div className="rc-obj">
+            {steeredBy.length
+              ? <>Steered to avoid{' '}
+                  {steeredBy.map((f) => titleCase(f)).join(' and ')}, over the
+                  shortest navigable path.</>
+              : <><b>Shortest navigable path only.</b> Sea state was not taken
+                  into account — this is not a weather-optimised route.</>}
+          </div>
+          {(routeProps.fields_unavailable ?? []).length > 0 && (
+            <div className="rc-gaps">
+              Could not steer by:{' '}
+              {routeProps.fields_unavailable!.map((f) =>
+                `${titleCase(f.parameter)} (${f.reason.replace(/_/g, ' ').toLowerCase()})`
+              ).join(', ')}
+            </div>
+          )}
+          <div className="rc-note">
+            {routeProps.navigability ? `Navigability: ${routeProps.navigability}. ` : ''}
+            {routeProps.note}
+          </div>
+        </div>
+      )}
 
       <Disagreement assessments={data.assessments || []} />
 

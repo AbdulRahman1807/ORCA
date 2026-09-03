@@ -32,6 +32,12 @@ class OrcaRuntime:
     #: Navigability test for route planning, supplied by the composition
     #: root. `None` means routing is unavailable and says so.
     navigable: Any = None
+    #: Gridded wave and wind for route STEERING, supplied by the composition
+    #: root as `fn(lat, lon, valid_time, radius_km) -> (fields, provenance,
+    #: unavailable)`. `None` means the route is planned on distance and
+    #: navigability alone -- which is a legitimate degradation, but one the
+    #: answer must state rather than present as an optimised route.
+    route_fields: Any = None
     max_replans: int = MAX_REPLANS
     #: Analysis window length when the query implies a period rather than an instant.
     window_hours: int = 4

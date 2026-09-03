@@ -1725,3 +1725,100 @@ Unchanged from §22.6 and §22.5: the `to`-infinitive location bug still fails t
 graph tests and still breaks "is it safe to go out near Kochi"; the committed
 `webui/` bundle is still a build artefact nothing reproduces in CI; and there is
 still no pinned requirements file.
+
+---
+
+## 24. Session 14 — the route that was never steered
+
+A verification pass asked four questions. Three came back clean; the fourth found
+the most serious defect in the project so far, and it had been passing every test
+in the suite.
+
+### 24.1 What the audit found
+
+**Coherence — passes.** Eleven cross-checks over one run and its provenance
+chain: every `evidence.provenance_id` resolves, every `driver.evidence_id`
+resolves, every driver's number equals its evidence's number exactly, every
+provenance record has a temporal-strip row, a capped verdict has no driver
+marked limiting and its `limiting_factor` IS the cap, and every alert carries a
+`dataset_version` and `advisory_only`. One imprecision worth recording:
+`source_id` can be a source GROUP (`S-01..S-04`) rather than the dataset that
+actually served the value, so the audit trail cannot answer "which one".
+
+**Multi-run — passes.** Distinct `run_id` per turn; assessments 3 → 1 → 1 and
+alerts 3 → 0 → 3 across three turns rather than accumulating; a second thread
+resolved "near Chennai" without leaking into the first, which stayed "near
+Kochi". D-44 and F-55 hold under a real conversation.
+
+**Out-of-scope — no fabrication, but the wrong guard.** `hi`, `what is c
+programming`, `write me a poem about dogs` and a prompt-injection attempt all
+produced **zero assessments and zero evidence**; a follow-up naming a place asked
+for the intent rather than inventing one. Nothing is fabricated. But all four
+were answered with "Where are you asking about?", which treats nonsense as a
+marine question missing a detail. `classify()` returns
+`smalltalk_or_out_of_scope` **only for empty text**; everything else falls to
+`unknown`, which routes to `plan`. The `out_of_scope` edge in `build.py` is
+therefore **dead code**. Recorded, not yet fixed.
+
+Translation degrades safely: `t()` falls back to the English key, so a missing
+term surfaces in English rather than as a wrong claim. Eighteen leaked into a
+Malayalam narrative (`distance`, `thermal`, `front`, `seasonal closure`, …).
+A coverage gap, not a correctness risk — numbers and INCOIS/IMD stayed intact.
+
+### 24.2 The route was a shortest path, and looked like more
+
+| ID | Finding |
+|---|---|
+| **F-68** | **No gridded field ever reached the router.** `geo_reason` collected `OceanField` instances out of `tool_results` — but retrieval returns POINT values, so the list was always empty. Instrumented over one Kochi→Chennai route: **0 fields, and `cost_function` called 5 128 times returning 0.0 every single time.** Every route ORCA has ever drawn was the shortest navigable path. |
+
+The machinery was never broken, only starved. Injecting a synthetic 4 m band
+across the corridor moved the route 997 km → 1848 km and pushed its southern
+limit from 8.03N to 5.93N. The cost function, the penalties and the A* search
+were all correct; nothing fed them.
+
+What makes this the worst defect so far is not the routing. It is that the map
+looked right. A distance-only path and a weather-steered path are the **same
+picture**, and this interface had just added a corridor tinted by wave height
+along it — so the colour invited a reader to believe the route avoided the red
+stretches. It did not. The prose never overclaimed (a route answer refuses to
+call itself safe), and the layer already carried an honest `note`, but nothing
+rendered it: the one place the truth lived was a property nobody saw.
+
+**D-48 · A route declares what steered it.**
+`steered_by` now travels with the route layer, empty when nothing steered it,
+and both the map legend and a new route card read from it. A route planned on
+distance alone says so, in those words, in the answer.
+
+### 24.3 The wiring
+
+Grids are fetched at `geo_reason` for the CORRIDOR — the midpoint plus a radius
+covering the whole route with room for the detour a field may force — because
+nothing upstream produces them and a field that stops at the straight line goes
+blind halfway through a diversion. The provider is injected from the composition
+root exactly as `navigable` is, so the graph node still never touches an adapter.
+
+Two things were easy to get wrong here:
+
+* **Row order.** `extract_field_values` indexes from `bbox.min_lat`, so row 0
+  must be the SOUTHERNMOST latitude, and sources publish either order.
+  `as_ocean_field` normalises and is tested from both directions. A flipped grid
+  would apply every penalty to the mirror image of the sea it was measured in —
+  worse than no penalty at all, because the route would still look steered.
+* **Silent failure.** Every fetch failure is returned as a declared gap, named
+  and reasoned, and surfaces in `not_evaluated` as
+  `route_steering:<parameter>`. The whole risk being fixed is a distance-only
+  line presented as an optimised one; a swallowed exception would reintroduce it.
+
+Live, Kochi→Chennai: both grids fetched (97×97 waves, 17×18 wind), route
+996.6 km → **1015.9 km**. The router accepted **19.3 extra km to avoid 80
+penalty-km** of rough water, and the corridor's own maximum fell from 1.89 m to
+1.78 m. With the adapters removed it degrades to `objective: "shortest navigable
+path only"`, the note gains "Sea state was NOT considered", the route card turns
+amber, and the corridor legend switches to "shown for information only … this
+route did **not** take these conditions into account".
+
+### 24.4 Still open
+
+The `to`-infinitive location bug (§22.6), `out_of_scope` as dead code (§24.1),
+the unreproducible committed `webui/` bundle and the missing pinned requirements
+file (§22.5).

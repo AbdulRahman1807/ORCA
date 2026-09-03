@@ -110,6 +110,19 @@ export interface ORCAPlan {
   reasoning_summary: string;
 }
 
+/** What the router was actually steered by — see `analysis.geo_reason`. */
+export interface ORCARouteProps {
+  waypoints?: number;
+  length_km?: number;
+  navigability?: string;
+  advisory_only?: boolean;
+  /** Parameters that penalised the search. EMPTY means distance-only. */
+  steered_by?: string[];
+  fields_unavailable?: { parameter: string; reason: string; detail: string }[];
+  objective?: string;
+  note?: string;
+}
+
 export interface ORCAMapLayer {
   id: string;
   type: string;
